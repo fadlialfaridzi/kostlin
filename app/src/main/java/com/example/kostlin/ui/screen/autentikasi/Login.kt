@@ -43,6 +43,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(vertical = 40.dp)
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

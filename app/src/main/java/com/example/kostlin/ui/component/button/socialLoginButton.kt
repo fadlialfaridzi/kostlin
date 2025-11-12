@@ -1,6 +1,6 @@
 package com.example.kostlin.ui.component.button
 
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -11,13 +11,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun SocialLoginButton(icon: String) {
+fun SocialLoginButton(icon: String, onClick: () -> Unit) {
     Button(
-        onClick = { /* Handle social login */ },
-        modifier = Modifier.width(50.dp),
+        onClick = onClick,
+        modifier = Modifier.size(50.dp),
         shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Gray.copy(alpha = 0.1f)
+            containerColor = Color.White
         )
     ) {
         Text(text = icon, color = Color.Black)

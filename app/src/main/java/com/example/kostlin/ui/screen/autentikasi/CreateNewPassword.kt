@@ -43,18 +43,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lint.kotlin.metadata.Visibility
-import com.example.kostlin.data.UserRepository
 import com.example.kostlin.ui.theme.ButtonBlue
 import com.example.kostlin.ui.theme.DarkText
 import com.example.kostlin.ui.theme.LightText
 
 @Composable
 fun CreateNewPasswordScreen(
-    email: String,
     onNavigateBack: () -> Unit,
-    onPasswordChanged: () -> Unit,
-    userRepository: UserRepository
+    onPasswordChanged: () -> Unit
 ) {
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -195,7 +191,7 @@ fun CreateNewPasswordScreen(
                     } else if (newPassword != confirmPassword) {
                         errorMessage = "Passwords do not match"
                     } else {
-                        userRepository.updatePassword(email, newPassword)
+                        errorMessage = ""
                         showSuccessDialog = true
                     }
                 },

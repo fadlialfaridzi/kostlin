@@ -21,11 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.NotificationsNone
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -34,12 +31,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,63 +49,130 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.kostlin.data.User
-
-
-private data class Property(
-    val title: String,
-    val location: String,
-    val price: String,
-    val rating: String
-)
-
+import com.example.kostlin.ui.screen.search.SearchScreen
+import com.example.kostlin.ui.components.BottomNavigation
+import com.example.kostlin.ui.components.BottomNavRoute
+import com.example.kostlin.data.model.KosProperty
+import com.example.kostlin.data.model.KosDummyData
+import com.example.kostlin.data.model.KosType
+import com.example.kostlin.ui.screen.detail.DetailKosScreen
+import com.example.kostlin.ui.screen.favorite.FavoriteKosScreen
+import com.example.kostlin.ui.screen.add.AddKosScreen
 private data class Category(
-    val label: String
+    val label: String,
+    val type: KosType? = null
 )
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    user: User?,
+    userName: String,
     onLogout: () -> Unit
 ) {
-    val displayName = user?.fullName?.ifBlank { null } ?: "Mr. Jiharmok"
+    val displayName = userName.ifBlank { "Mr. Jiharmok" }
+    var showSearchScreen by remember { mutableStateOf(false) }
+    var selectedCategoryIndex by remember { mutableStateOf(0) }
+    var selectedKosProperty by remember { mutableStateOf<KosProperty?>(null) }
+    var showFavoriteScreen by remember { mutableStateOf(false) }
+    var showAddKosScreen by remember { mutableStateOf(false) }
 
-    val popularProperties = listOf(
-        Property("Kost Putri", "Pauh, Padang", "Rp. 800.000 /Bulan", "4.5"),
-        Property("Kost Utama", "Pauh, Padang", "Rp. 750.000 /Bulan", "4.4"),
-        Property("Kost Mawar", "Padang Selatan", "Rp. 680.000 /Bulan", "4.6")
-    )
+    val popularProperties = KosDummyData.getPopularProperties()
 
     val categories = listOf(
         Category("All"),
-        Category("Kost"),
-        Category("Kontrakan"),
-        Category("Apartment")
+        Category("Kos Putra", KosType.PUTRA),
+        Category("Kos Putri", KosType.PUTRI),
+        Category("Kos Campur", KosType.CAMPUR)
     )
 
-    val recommendations = listOf(
-        Property("Kost Pria", "Padang", "Rp. 590.000 /Bulan", "4.5"),
-        Property("Kost Elite", "Padang Utara", "Rp. 950.000 /Bulan", "4.8")
-    )
+    val recommendations = remember(selectedCategoryIndex) {
+        val selectedCategory = categories[selectedCategoryIndex]
+        when {
+            selectedCategory.type == null -> KosDummyData.allKosProperties // All
+            selectedCategory.type == KosType.PUTRA -> KosDummyData.getPropertiesByType(KosType.PUTRA)
+            selectedCategory.type == KosType.PUTRI -> KosDummyData.getPropertiesByType(KosType.PUTRI)
+            selectedCategory.type == KosType.CAMPUR -> KosDummyData.getPropertiesByType(KosType.CAMPUR)
+            else -> KosDummyData.getRecommendedProperties()
+        }
+    }
 
-    Scaffold(
+    when {
+        selectedKosProperty != null -> {
+            DetailKosScreen(
+                kosProperty = selectedKosProperty!!,
+                onBackClick = { selectedKosProperty = null },
+                onBookingClick = { /* TODO: Handle booking */ },
+                modifier = modifier
+            )
+        }
+        showAddKosScreen -> {
+            AddKosScreen(
+                onBackClick = { showAddKosScreen = false },
+                onNavigate = { route ->
+                    when (route) {
+                        BottomNavRoute.HOME.route -> showAddKosScreen = false
+                        BottomNavRoute.FAVORITE.route -> {
+                            showAddKosScreen = false
+                            showFavoriteScreen = true
+                        }
+                        // Handle other routes
+                    }
+                },
+                modifier = modifier
+            )
+        }
+        showFavoriteScreen -> {
+            FavoriteKosScreen(
+                onBackClick = { showFavoriteScreen = false },
+                onKosClick = { kosProperty -> selectedKosProperty = kosProperty },
+                onNavigate = { route ->
+                    when (route) {
+                        BottomNavRoute.HOME.route -> showFavoriteScreen = false
+                        BottomNavRoute.ADD.route -> {
+                            showFavoriteScreen = false
+                            showAddKosScreen = true
+                        }
+                        // Handle other routes
+                    }
+                },
+                modifier = modifier
+            )
+        }
+        showSearchScreen -> {
+            SearchScreen(
+                onBackClick = { showSearchScreen = false },
+                modifier = modifier
+            )
+        }
+        else -> {
+        Scaffold(
         modifier = modifier.background(Color(0xFFF7F9FF)),
         bottomBar = {
-            HomeBottomNavigation()
+            BottomNavigation(
+                currentRoute = BottomNavRoute.HOME.route,
+                onNavigate = { route ->
+                    when (route) {
+                        BottomNavRoute.FAVORITE.route -> showFavoriteScreen = true
+                        BottomNavRoute.ADD.route -> showAddKosScreen = true
+                        // TODO: Handle other navigation routes
+                    }
+                }
+            )
         }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
+                Spacer(modifier = Modifier.height(8.dp))
                 HeaderSection(
                     name = displayName,
-                    onLogout = onLogout
+                    onLogout = onLogout,
+                    onSearchClick = { showSearchScreen = true }
                 )
             }
 
@@ -126,25 +192,46 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(popularProperties) { property ->
-                        PopularPropertyCard(property)
+                        PopularPropertyCard(
+                            property = property,
+                            onClick = { selectedKosProperty = property }
+                        )
                     }
                 }
             }
 
             item {
+                val sectionTitle = when (selectedCategoryIndex) {
+                    0 -> "Semua Kos"
+                    1 -> "Kos Putra"
+                    2 -> "Kos Putri"
+                    3 -> "Kos Campur"
+                    else -> "Rekomendasi Untuk Anda"
+                }
                 SectionTitle(
-                    title = "Rekomendasi Untuk Anda",
+                    title = sectionTitle,
                     actionLabel = "Lihat Semua"
                 )
             }
 
             item {
-                CategoryRow(categories = categories)
+                CategoryRow(
+                    categories = categories,
+                    selectedIndex = selectedCategoryIndex,
+                    onCategoryClick = { index ->
+                        selectedCategoryIndex = index
+                    }
+                )
             }
 
             items(recommendations) { item ->
-                RecommendationCard(property = item)
+                RecommendationCard(
+                    property = item,
+                    onClick = { selectedKosProperty = item }
+                )
             }
+        }
+    }
         }
     }
 }
@@ -152,7 +239,8 @@ fun HomeScreen(
 @Composable
 private fun HeaderSection(
     name: String,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSearchClick: () -> Unit
 ) {
     Column {
         Row(
@@ -206,7 +294,7 @@ private fun HeaderSection(
             }
 
             Row {
-                IconButton(onClick = { /* TODO: search */ }) {
+                IconButton(onClick = onSearchClick) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
@@ -314,11 +402,13 @@ private fun SectionTitle(
 
 @Composable
 private fun PopularPropertyCard(
-    property: Property
+    property: KosProperty,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
-            .size(width = 200.dp, height = 220.dp),
+            .size(width = 200.dp, height = 220.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
@@ -336,7 +426,7 @@ private fun PopularPropertyCard(
                         .fillMaxSize()
                         .background(
                             brush = Brush.verticalGradient(
-                                listOf(Color(0xFF8DC26F), Color(0xFFF0C27B))
+                                listOf(Color(0xFF6B8E23), Color(0xFF8FBC8F))
                             )
                         )
                 )
@@ -370,7 +460,7 @@ private fun PopularPropertyCard(
                 ) {
                     Column {
                         Text(
-                            text = property.title,
+                            text = property.name,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
@@ -411,18 +501,21 @@ private fun PopularPropertyCard(
 
 @Composable
 private fun CategoryRow(
-    categories: List<Category>
+    categories: List<Category>,
+    selectedIndex: Int = 0,
+    onCategoryClick: (Int) -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         categories.forEachIndexed { index, category ->
-            val isSelected = index == 0
+            val isSelected = index == selectedIndex
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(12.dp)),
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onCategoryClick(index) },
                 color = if (isSelected) Color(0xFF5876FF) else Color.White,
                 tonalElevation = 2.dp,
                 shadowElevation = 2.dp
@@ -445,11 +538,13 @@ private fun CategoryRow(
 
 @Composable
 private fun RecommendationCard(
-    property: Property
+    property: KosProperty,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -474,7 +569,7 @@ private fun RecommendationCard(
             ) {
                 Image(
                     painter = rememberVectorPainter(Icons.Default.Home),
-                    contentDescription = property.title,
+                    contentDescription = property.name,
                     modifier = Modifier.size(32.dp),
                     alpha = 0.85f
                 )
@@ -484,7 +579,7 @@ private fun RecommendationCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = property.title,
+                    text = property.name,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1B2633)
@@ -527,38 +622,5 @@ private fun RecommendationCard(
     }
 }
 
-@Composable
-private fun HomeBottomNavigation() {
-    NavigationBar(
-        containerColor = Color.White,
-        tonalElevation = 6.dp
-    ) {
-        val items = listOf(
-            Icons.Default.Home to "Home",
-            Icons.Default.BookmarkBorder to "My Booking",
-            Icons.Default.ChatBubbleOutline to "Message",
-            Icons.Default.Person to "Profile"
-        )
 
-        items.forEachIndexed { index, item ->
-            NavigationBarItem(
-                selected = index == 0,
-                onClick = { /* TODO: bottom navigation action */ },
-                icon = {
-                    Icon(
-                        imageVector = item.first,
-                        contentDescription = item.second,
-                        tint = if (index == 0) Color(0xFF5876FF) else Color(0xFF4B5C6B)
-                    )
-                },
-                label = {
-                    Text(
-                        text = item.second,
-                        color = if (index == 0) Color(0xFF5876FF) else Color(0xFF4B5C6B)
-                    )
-                }
-            )
-        }
-    }
-}
 

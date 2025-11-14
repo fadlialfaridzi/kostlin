@@ -45,8 +45,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import com.example.kostlin.data.User
-import com.example.kostlin.data.UserRepository
 import com.example.kostlin.ui.component.button.SocialLoginButton
 import com.example.kostlin.ui.theme.ButtonBlue
 import com.example.kostlin.ui.theme.DarkText
@@ -56,8 +54,7 @@ import com.example.kostlin.ui.theme.LinkColor
 @Composable
 fun RegisterScreen(
     onNavigateBack: () -> Unit,
-    onRegisterSuccess: () -> Unit,
-    userRepository: UserRepository
+    onRegisterSuccess: (fullName: String, email: String) -> Unit
 ) {
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -321,10 +318,10 @@ fun RegisterScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val user = User(fullName, email, password)
-                        userRepository.saveUser(user)
+                        val trimmedName = fullName.trim()
+                        val trimmedEmail = email.trim()
                         showTermsDialog = false
-                        onRegisterSuccess()
+                        onRegisterSuccess(trimmedName, trimmedEmail)
                     }
                 ) {
                     Text("Agree", color = ButtonBlue)

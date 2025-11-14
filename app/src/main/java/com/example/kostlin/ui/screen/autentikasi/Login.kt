@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -39,10 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.kostlin.data.UserRepository
-import com.example.kostlin.ui.component.button.SocialLoginButton
 import com.example.kostlin.ui.theme.ButtonBlue
 import com.example.kostlin.ui.theme.DarkText
 import com.example.kostlin.ui.theme.LightText
@@ -50,10 +46,9 @@ import com.example.kostlin.ui.theme.LinkColor
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
+    onLogin: (email: String, password: String, rememberMe: Boolean) -> Unit,
     onNavigateToRegister: () -> Unit,
-    onNavigateToForgotPassword: () -> Unit,
-    userRepository: UserRepository
+    onNavigateToForgotPassword: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -206,11 +201,9 @@ fun LoginScreen(
                 onClick = {
                     if (email.isBlank() || password.isBlank()) {
                         errorMessage = "Please fill all fields"
-                    } else if (userRepository.validateLogin(email, password)) {
-                        userRepository.setLoggedInUser(email)
-                        onLoginSuccess()
                     } else {
-                        errorMessage = "Invalid email or password"
+                        errorMessage = ""
+                        onLogin(email.trim(), password, isRememberMeChecked)
                     }
                 },
                 modifier = Modifier

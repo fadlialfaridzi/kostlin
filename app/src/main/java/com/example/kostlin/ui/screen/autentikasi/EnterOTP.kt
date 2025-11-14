@@ -40,7 +40,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.kostlin.data.UserRepository
 import com.example.kostlin.ui.theme.ButtonBlue
 import com.example.kostlin.ui.theme.DarkText
 import com.example.kostlin.ui.theme.LightText
@@ -51,7 +50,7 @@ fun EnterOTPScreen(
     email: String,
     onNavigateBack: () -> Unit,
     onNavigateToNewPassword: (String) -> Unit,
-    userRepository: UserRepository
+    onResendCode: (String) -> Unit
 ) {
     var otp1 by remember { mutableStateOf("") }
     var otp2 by remember { mutableStateOf("") }
@@ -190,10 +189,9 @@ fun EnterOTPScreen(
                     val otp = otp1 + otp2 + otp3 + otp4
                     if (otp.length != 4) {
                         errorMessage = "Please enter complete OTP"
-                    } else if (userRepository.validateOTP(email, otp)) {
-                        onNavigateToNewPassword(email)
                     } else {
-                        errorMessage = "Invalid OTP"
+                        errorMessage = ""
+                        onNavigateToNewPassword(email)
                     }
                 },
                 modifier = Modifier
@@ -215,8 +213,7 @@ fun EnterOTPScreen(
                     color = LinkColor,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier.clickable {
-                        val otp = (1000..9999).random().toString()
-                        userRepository.saveOTP(email, otp)
+                        onResendCode(email)
                     }
                 )
             }

@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.example.kostlin.data.UserRepository
 import com.example.kostlin.ui.theme.ButtonBlue
 import com.example.kostlin.ui.theme.DarkText
 import com.example.kostlin.ui.theme.LightText
@@ -41,8 +40,7 @@ import com.example.kostlin.ui.theme.LightText
 @Composable
 fun ForgotPasswordScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToOTP: (String) -> Unit,
-    userRepository: UserRepository
+    onNavigateToOTP: (String) -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
@@ -133,13 +131,9 @@ fun ForgotPasswordScreen(
                 onClick = {
                     if (email.isBlank()) {
                         errorMessage = "Please enter your email"
-                    } else if (userRepository.getUserByEmail(email) == null) {
-                        errorMessage = "Email not found"
                     } else {
-                        // Generate and save OTP
-                        val otp = (1000..9999).random().toString()
-                        userRepository.saveOTP(email, otp)
-                        onNavigateToOTP(email)
+                        errorMessage = ""
+                        onNavigateToOTP(email.trim())
                     }
                 },
                 modifier = Modifier

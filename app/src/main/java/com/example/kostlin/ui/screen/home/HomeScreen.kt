@@ -75,6 +75,7 @@ fun HomeScreen(
     var selectedKosProperty by remember { mutableStateOf<KosProperty?>(null) }
     var showFavoriteScreen by remember { mutableStateOf(false) }
     var showAddKosScreen by remember { mutableStateOf(false) }
+    var showPopularPropertiesScreen by remember { mutableStateOf(false) }
 
     val popularProperties = KosDummyData.getPopularProperties()
 
@@ -97,6 +98,16 @@ fun HomeScreen(
     }
 
     when {
+        showPopularPropertiesScreen -> {
+            PopularPropertiesScreen(
+                onBackClick = { showPopularPropertiesScreen = false },
+                onPropertyClick = { property ->
+                    selectedKosProperty = property
+                    showPopularPropertiesScreen = false
+                },
+                modifier = modifier
+            )
+        }
         selectedKosProperty != null -> {
             DetailKosScreen(
                 kosProperty = selectedKosProperty!!,
@@ -183,7 +194,8 @@ fun HomeScreen(
             item {
                 SectionTitle(
                     title = "Paling Populer",
-                    actionLabel = "Lihat Semua"
+                    actionLabel = "Lihat Semua",
+                    onActionClick = { showPopularPropertiesScreen = true }
                 )
             }
 
@@ -376,7 +388,8 @@ private fun LocationBanner() {
 @Composable
 private fun SectionTitle(
     title: String,
-    actionLabel: String
+    actionLabel: String,
+    onActionClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -395,7 +408,8 @@ private fun SectionTitle(
             style = MaterialTheme.typography.bodyMedium.copy(
                 color = Color(0xFF5876FF),
                 fontWeight = FontWeight.Medium
-            )
+            ),
+            modifier = Modifier.clickable { onActionClick() }
         )
     }
 }

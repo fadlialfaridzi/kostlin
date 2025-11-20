@@ -53,6 +53,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation(libs.androidx.animation.core.lint) // Gson untuk serialisasi data
     implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.coil.compose) // Coil untuk image loading
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

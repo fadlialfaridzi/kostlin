@@ -21,6 +21,7 @@ import com.example.kostlin.ui.screen.autentikasi.ForgotPasswordScreen
 import com.example.kostlin.ui.screen.autentikasi.LoginScreen
 import com.example.kostlin.ui.screen.autentikasi.RegisterScreen
 import com.example.kostlin.ui.screen.home.HomeScreen
+import com.example.kostlin.ui.screen.onboarding.OnboardingScreen
 import com.example.kostlin.ui.screen.splash.SplashScreen
 import com.example.kostlin.ui.theme.KostlinTheme
 
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             KostlinTheme {
                 var showSplash by remember { mutableStateOf(true) }
+                var showOnboarding by remember { mutableStateOf(true) }
                 var isLoggedIn by remember { mutableStateOf(false) }
                 var activeUserName by remember { mutableStateOf("Mr. Jiharmok") }
 
@@ -39,6 +41,12 @@ class MainActivity : ComponentActivity() {
                     SplashScreen(
                         onSplashFinished = {
                             showSplash = false
+                        }
+                    )
+                } else if (showOnboarding) {
+                    OnboardingScreen(
+                        onOnboardingFinished = {
+                            showOnboarding = false
                         }
                     )
                 } else {

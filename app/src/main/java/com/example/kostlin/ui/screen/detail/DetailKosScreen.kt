@@ -58,6 +58,18 @@ import com.example.kostlin.data.model.KosProperty
 import com.example.kostlin.data.model.KosDummyData
 import com.example.kostlin.data.model.KosReview
 import com.example.kostlin.data.model.KosFacility
+import com.example.kostlin.ui.screen.booking.RequestToBookScreen
+import com.example.kostlin.ui.screen.booking.SelectDateScreen
+import com.example.kostlin.ui.screen.booking.CheckoutScreen
+import com.example.kostlin.ui.screen.booking.BookingLoadingScreen
+import com.example.kostlin.ui.screen.booking.BookingSuccessScreen
+import com.example.kostlin.ui.screen.booking.BookingRequest
+import com.example.kostlin.ui.screen.booking.BookingDetail
+import java.time.LocalDate
+
+enum class BookingStep {
+    REQUEST_TO_BOOK, SELECT_DATE, CHECKOUT, LOADING, SUCCESS
+}
 
 @Composable
 fun DetailKosScreen(
@@ -71,6 +83,14 @@ fun DetailKosScreen(
     val recommendedKos = remember { KosDummyData.getRecommendedKos(kosProperty.id) }
     
     var isFavorite by remember { mutableStateOf(KosDummyData.isFavorite(kosProperty.id)) }
+    var showAllFacilities by remember { mutableStateOf(false) }
+    var showAllReviews by remember { mutableStateOf(false) }
+    
+    // Booking flow states
+    var bookingStep by remember { mutableStateOf<BookingStep?>(null) }
+    var bookingRequest by remember { mutableStateOf<BookingRequest?>(null) }
+    var selectedCheckInDate by remember { mutableStateOf<LocalDate?>(null) }
+    var selectedCheckOutDate by remember { mutableStateOf<LocalDate?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -108,7 +128,10 @@ fun DetailKosScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     // Facilities
-                    FacilitiesSection(facilities = facilities)
+                    FacilitiesSection(
+                        facilities = facilities,
+                        onShowAll = { showAllFacilities = true }
+                    )
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
@@ -123,7 +146,10 @@ fun DetailKosScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     // Reviews
-                    ReviewsSection(reviews = reviews)
+                    ReviewsSection(
+                        reviews = reviews,
+                        onShowAll = { showAllReviews = true }
+                    )
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
@@ -137,12 +163,104 @@ fun DetailKosScreen(
             }
         }
         
-        // Bottom Price and Booking Button
-        BottomBookingSection(
-            kosProperty = kosProperty,
-            onBookingClick = onBookingClick,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        // Show modals if needed
+        if (showAllFacilities) {
+            AllFacilitiesModal(
+                facilities = facilities,
+                onBackClick = { showAllFacilities = false }
+            )
+        }
+
+        if (showAllReviews) {
+            AllReviewsModal(
+                reviews = reviews,
+                averageRating = kosProperty.rating.toDoubleOrNull() ?: 4.4,
+                onBackClick = { showAllReviews = false }
+            )
+        }
+
+        // Booking Flow
+        when (bookingStep) {
+            BookingStep.REQUEST_TO_BOOK -> {
+                RequestToBookScreen(
+                    kosProperty = kosProperty,
+                    onBackClick = { bookingStep = null },
+                    onSelectDateClick = { bookingStep = BookingStep.SELECT_DATE },
+                    onBookingClick = { request ->
+                        bookingRequest = request
+                        bookingStep = BookingStep.CHECKOUT
+                    }
+                )
+            }
+
+            BookingStep.SELECT_DATE -> {
+                SelectDateScreen(
+                    onDateSelected = { date ->
+                        if (selectedCheckInDate == null) {
+                            selectedCheckInDate = date
+                        } else {
+                            selectedCheckOutDate = date
+                            // Update booking request with dates
+                            bookingRequest = bookingRequest?.copy(
+                                checkInDate = selectedCheckInDate,
+                                checkOutDate = date
+                            )
+                        }
+                    },
+                    onBackClick = { bookingStep = BookingStep.REQUEST_TO_BOOK }
+                )
+            }
+
+            BookingStep.CHECKOUT -> {
+                if (bookingRequest != null) {
+                    val bookingDetail = BookingDetail(
+                        kosId = kosProperty.id,
+                        kosName = kosProperty.name,
+                        location = kosProperty.location,
+                        pricePerMonth = kosProperty.pricePerMonth,
+                        rating = kosProperty.ratingValue,
+                        checkInDate = bookingRequest!!.checkInDate ?: LocalDate.now(),
+                        checkOutDate = bookingRequest!!.checkOutDate ?: LocalDate.now().plusDays(1),
+                        capacity = bookingRequest!!.capacity,
+                        roomType = bookingRequest!!.roomType,
+                        ownerEmail = "owner@example.com",
+                        ownerPhone = "08123456789",
+                        userPhone = "08987654321"
+                    )
+
+                    CheckoutScreen(
+                        bookingDetail = bookingDetail,
+                        onBackClick = { bookingStep = BookingStep.REQUEST_TO_BOOK },
+                        onConfirmBooking = { bookingStep = BookingStep.LOADING }
+                    )
+                }
+            }
+
+            BookingStep.LOADING -> {
+                BookingLoadingScreen(
+                    onLoadingComplete = { bookingStep = BookingStep.SUCCESS },
+                    onCancel = { bookingStep = BookingStep.CHECKOUT }
+                )
+            }
+
+            BookingStep.SUCCESS -> {
+                BookingSuccessScreen(
+                    onContinue = {
+                        bookingStep = null
+                        onBookingClick()
+                    }
+                )
+            }
+
+            null -> {
+                // Bottom Price and Booking Button
+                BottomBookingSection(
+                    kosProperty = kosProperty,
+                    onBookingClick = { bookingStep = BookingStep.REQUEST_TO_BOOK },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
+        }
     }
 }
 
@@ -298,7 +416,10 @@ private fun KosTitleSection(kosProperty: KosProperty) {
 }
 
 @Composable
-private fun FacilitiesSection(facilities: List<KosFacility>) {
+private fun FacilitiesSection(
+    facilities: List<KosFacility>,
+    onShowAll: () -> Unit = {}
+) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -319,7 +440,7 @@ private fun FacilitiesSection(facilities: List<KosFacility>) {
                     color = Color(0xFF5876FF),
                     fontWeight = FontWeight.Medium
                 ),
-                modifier = Modifier.clickable { /* TODO: Show all facilities */ }
+                modifier = Modifier.clickable { onShowAll() }
             )
         }
         
@@ -472,7 +593,10 @@ private fun LocationSection(kosProperty: KosProperty) {
 }
 
 @Composable
-private fun ReviewsSection(reviews: List<KosReview>) {
+private fun ReviewsSection(
+    reviews: List<KosReview>,
+    onShowAll: () -> Unit = {}
+) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -493,7 +617,7 @@ private fun ReviewsSection(reviews: List<KosReview>) {
                     color = Color(0xFF5876FF),
                     fontWeight = FontWeight.Medium
                 ),
-                modifier = Modifier.clickable { /* TODO: Show all reviews */ }
+                modifier = Modifier.clickable { onShowAll() }
             )
         }
         

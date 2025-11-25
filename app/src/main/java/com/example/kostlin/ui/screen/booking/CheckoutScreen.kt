@@ -23,6 +23,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -263,24 +264,44 @@ fun CheckoutScreen(
 
                     Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .height(64.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFEEF2FF)
                     ) {
-                        Text(
-                            text = "Total Pembayaran",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1B2633)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Total Pembayaran",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF5A6473)
+                                    )
+                                )
+                                Text(
+                                    text = "Lakukan pembayaran untuk lanjut",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = Color(0xFF8891A5)
+                                    )
+                                )
+                            }
+                            Text(
+                                text = "Rp ${String.format("%,d", bookingDetail.getTotalPrice()).replace(",", ".")}",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1B2633)
+                                )
                             )
-                        )
-                        Text(
-                            text = "Rp ${String.format("%,d", bookingDetail.getTotalPrice()).replace(",", ".")}",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1B2633)
-                            )
-                        )
+                        }
                     }
                 }
             }
@@ -296,7 +317,7 @@ fun CheckoutScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5876FF)),
             shape = RoundedCornerShape(12.dp)
         ) {

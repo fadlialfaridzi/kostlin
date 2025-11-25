@@ -1,5 +1,10 @@
 package com.example.kostlin.ui.screen.add
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,18 +42,26 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.kostlin.ui.components.BottomNavigation
@@ -56,7 +70,22 @@ import com.example.kostlin.ui.components.BottomNavRoute
 data class KosFacilityOption(
     val name: String,
     val icon: String,
-    var isSelected: Boolean = false
+    val isSelected: Boolean = false
+)
+
+data class KosFormSnapshot(
+    val name: String,
+    val address: String,
+    val contactEmail: String,
+    val contactWhatsapp: String,
+    val contactInstagram: String,
+    val contactPhone: String,
+    val minPrice: String,
+    val maxPrice: String,
+    val facilities: List<String>,
+    val imageCount: Int,
+    val latitude: Double?,
+    val longitude: Double?
 )
 
 @Composable
@@ -65,6 +94,7 @@ fun AddKosScreen(
     onNavigate: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var kosName by remember { mutableStateOf("") }
     var kosAddress by remember { mutableStateOf("") }
     var ownerEmail by remember { mutableStateOf("") }
@@ -73,9 +103,13 @@ fun AddKosScreen(
     var ownerPhone by remember { mutableStateOf("") }
     var minPrice by remember { mutableStateOf("") }
     var maxPrice by remember { mutableStateOf("") }
-    
+    var showLocationDialog by remember { mutableStateOf(false) }
+    var selectedLatitude by rememberSaveable { mutableStateOf<Double?>(null) }
+    var selectedLongitude by rememberSaveable { mutableStateOf<Double?>(null) }
+    var temporarySaveMessage by rememberSaveable { mutableStateOf<String?>(null) }
+
     val facilityOptions = remember {
-        mutableListOf(
+        mutableStateListOf(
             KosFacilityOption("WiFi", "📶"),
             KosFacilityOption("AC", "❄️"),
             KosFacilityOption("Kamar Mandi Dalam", "🚿"),
@@ -87,6 +121,34 @@ fun AddKosScreen(
             KosFacilityOption("Gym", "💪"),
             KosFacilityOption("Rooftop", "🏠")
         )
+    }
+
+    val selectedImages = remember { mutableStateListOf<ImageBitmap>() }
+    val savedKosDrafts = remember { mutableStateListOf<KosFormSnapshot>() }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.openInputStream(it)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            }.getOrNull()?.let { bitmap ->
+                selectedImages.add(bitmap)
+            }
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        bitmap?.asImageBitmap()?.let { image ->
+            selectedImages.add(image)
+        }
+    }
+
+    fun toggleFacility(option: KosFacilityOption, isSelected: Boolean) {
+        val index = facilityOptions.indexOfFirst { it.name == option.name }
+        if (index >= 0) {
+            facilityOptions[index] = facilityOptions[index].copy(isSelected = isSelected)
+        }
     }
 
     Scaffold(
@@ -186,17 +248,33 @@ fun AddKosScreen(
                 
                 // Fasilitas
                 item {
-                    FacilitiesSection(facilityOptions = facilityOptions)
+                    FacilitiesSection(
+                        facilityOptions = facilityOptions,
+                        onToggle = ::toggleFacility
+                    )
                 }
                 
                 // Upload Gambar
                 item {
-                    ImageUploadSection()
+                    ImageUploadSection(
+                        images = selectedImages,
+                        onAddFromGallery = { galleryLauncher.launch("image/*") },
+                        onAddFromCamera = { cameraLauncher.launch(null) },
+                        onRemoveImage = { index ->
+                            if (index in selectedImages.indices) {
+                                selectedImages.removeAt(index)
+                            }
+                        }
+                    )
                 }
                 
                 // Alamat Kos (Map)
                 item {
-                    MapLocationSection()
+                    MapLocationSection(
+                        latitude = selectedLatitude,
+                        longitude = selectedLongitude,
+                        onPickLocation = { showLocationDialog = true }
+                    )
                 }
                 
                 // Submit Button
@@ -205,7 +283,37 @@ fun AddKosScreen(
                     
                     Button(
                         onClick = {
-                            // TODO: Handle form submission
+                            val snapshot = KosFormSnapshot(
+                                name = kosName,
+                                address = kosAddress,
+                                contactEmail = ownerEmail,
+                                contactWhatsapp = ownerWhatsapp,
+                                contactInstagram = ownerInstagram,
+                                contactPhone = ownerPhone,
+                                minPrice = minPrice,
+                                maxPrice = maxPrice,
+                                facilities = facilityOptions.filter { it.isSelected }.map { it.name },
+                                imageCount = selectedImages.size,
+                                latitude = selectedLatitude,
+                                longitude = selectedLongitude
+                            )
+                            savedKosDrafts.add(0, snapshot)
+                            temporarySaveMessage = "Data kost tersimpan sementara (${savedKosDrafts.size} draft)"
+
+                            kosName = ""
+                            kosAddress = ""
+                            ownerEmail = ""
+                            ownerWhatsapp = ""
+                            ownerInstagram = ""
+                            ownerPhone = ""
+                            minPrice = ""
+                            maxPrice = ""
+                            for (i in facilityOptions.indices) {
+                                facilityOptions[i] = facilityOptions[i].copy(isSelected = false)
+                            }
+                            selectedImages.clear()
+                            selectedLatitude = null
+                            selectedLongitude = null
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -224,9 +332,41 @@ fun AddKosScreen(
                         )
                     }
                     
+                    if (temporarySaveMessage != null) {
+                        Text(
+                            text = temporarySaveMessage!!,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = Color(0xFF10B981),
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    if (savedKosDrafts.isNotEmpty()) {
+                        SavedDraftsSection(drafts = savedKosDrafts)
+                    }
+                    
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
+        }
+
+        if (showLocationDialog) {
+            LocationPickerDialog(
+                initialLatitude = selectedLatitude,
+                initialLongitude = selectedLongitude,
+                onDismiss = { showLocationDialog = false },
+                onConfirm = { lat, lon ->
+                    selectedLatitude = lat
+                    selectedLongitude = lon
+                    showLocationDialog = false
+                }
+            )
         }
     }
 }
@@ -404,7 +544,8 @@ private fun PriceRangeSection(
 
 @Composable
 private fun FacilitiesSection(
-    facilityOptions: MutableList<KosFacilityOption>
+    facilityOptions: List<KosFacilityOption>,
+    onToggle: (KosFacilityOption, Boolean) -> Unit
 ) {
     Column {
         Text(
@@ -426,7 +567,7 @@ private fun FacilitiesSection(
                     FacilityCheckboxItem(
                         facility = facility,
                         onCheckedChange = { isChecked ->
-                            facility.isSelected = isChecked
+                            onToggle(facility, isChecked)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -484,75 +625,158 @@ private fun FacilityCheckboxItem(
 }
 
 @Composable
-private fun ImageUploadSection() {
-    Column {
+private fun SavedDraftsSection(
+    drafts: List<KosFormSnapshot>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "Draft Tersimpan (${drafts.size})",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1B2633)
+            )
+        )
+
+        drafts.take(3).forEach { draft ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = draft.name.ifBlank { "Nama belum diisi" },
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1B2633)
+                        )
+                    )
+                    Text(
+                        text = draft.address.ifBlank { "Alamat belum diisi" },
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF6B7280)
+                        )
+                    )
+                    Text(
+                        text = "Kisaran harga: Rp ${draft.minPrice.ifBlank { "-" }} - Rp ${draft.maxPrice.ifBlank { "-" }}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF1B2633)
+                        )
+                    )
+                    Text(
+                        text = "Fasilitas terpilih: ${if (draft.facilities.isEmpty()) "Belum ada" else draft.facilities.joinToString()}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF1B2633)
+                        )
+                    )
+                    Text(
+                        text = "Foto: ${draft.imageCount} • Koordinat: ${
+                            if (draft.latitude != null && draft.longitude != null) {
+                                String.format("%.4f, %.4f", draft.latitude, draft.longitude)
+                            } else {
+                                "Belum ada"
+                            }
+                        }",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF6B7280)
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageUploadSection(
+    images: List<ImageBitmap>,
+    onAddFromGallery: () -> Unit,
+    onAddFromCamera: () -> Unit,
+    onRemoveImage: (Int) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = "Upload Gambar Kos",
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.Medium,
                 color = Color(0xFF1B2633)
-            ),
-            modifier = Modifier.padding(bottom = 12.dp)
+            )
         )
-        
-        LazyRow(
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Add image button
-            item {
+            Button(
+                onClick = onAddFromGallery,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF4FF)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "Pilih dari Galeri",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1B2633)
+                    )
+                )
+            }
+
+            Button(
+                onClick = onAddFromCamera,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5876FF)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "Buka Kamera",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                )
+            }
+        }
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(images.size) { index ->
                 Card(
                     modifier = Modifier
                         .size(100.dp)
-                        .clickable { /* TODO: Handle image upload */ },
+                        .clickable { onRemoveImage(index) },
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFF5F5F5)
-                    ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Box(
+                    Image(
+                        bitmap = images[index],
+                        contentDescription = "Foto Kost $index",
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+
+            if (images.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .size(100.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add Image",
-                                tint = Color(0xFF9E9E9E),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Tambah",
+                                text = "Belum ada foto",
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color(0xFF9E9E9E)
+                                    color = Color(0xFF9E9E9E),
+                                    textAlign = TextAlign.Center
                                 )
                             )
                         }
-                    }
-                }
-            }
-            
-            // Placeholder for uploaded images
-            items(3) { index ->
-                Card(
-                    modifier = Modifier.size(100.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFE8E8E8)
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "📷",
-                            fontSize = 32.sp
-                        )
                     }
                 }
             }
@@ -561,20 +785,36 @@ private fun ImageUploadSection() {
 }
 
 @Composable
-private fun MapLocationSection() {
+private fun MapLocationSection(
+    latitude: Double?,
+    longitude: Double?,
+    onPickLocation: () -> Unit
+) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Penanda Alamat Kos di Map",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1B2633)
+            Column {
+                Text(
+                    text = "Penanda Alamat Kos di Map",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF1B2633)
+                    )
                 )
-            )
+                Text(
+                    text = if (latitude != null && longitude != null) {
+                        String.format("Lat: %.5f, Lng: %.5f", latitude, longitude)
+                    } else {
+                        "Belum ada koordinat"
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFF6B7280)
+                    )
+                )
+            }
             
             Text(
                 text = "Pilih Lokasi",
@@ -582,18 +822,17 @@ private fun MapLocationSection() {
                     color = Color(0xFF5876FF),
                     fontWeight = FontWeight.Medium
                 ),
-                modifier = Modifier.clickable { /* TODO: Open map picker */ }
+                modifier = Modifier.clickable(onClick = onPickLocation)
             )
         }
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Map placeholder
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(150.dp)
-                .clickable { /* TODO: Open map picker */ },
+                .clickable(onClick = onPickLocation),
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color(0xFFF5F5F5)
@@ -615,13 +854,90 @@ private fun MapLocationSection() {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Tap untuk memilih lokasi di map",
+                        text = if (latitude != null && longitude != null) {
+                            "Tap untuk memperbarui lokasi"
+                        } else {
+                            "Tap untuk memilih lokasi di map"
+                        },
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color(0xFF6B7280)
+                            color = Color(0xFF6B7280),
+                            textAlign = TextAlign.Center
                         )
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LocationPickerDialog(
+    initialLatitude: Double?,
+    initialLongitude: Double?,
+    onDismiss: () -> Unit,
+    onConfirm: (Double, Double) -> Unit
+) {
+    var latitudeText by rememberSaveable(initialLatitude) { mutableStateOf(initialLatitude?.toString().orEmpty()) }
+    var longitudeText by rememberSaveable(initialLongitude) { mutableStateOf(initialLongitude?.toString().orEmpty()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Tentukan Koordinat Kost",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = latitudeText,
+                    onValueChange = {
+                        latitudeText = it
+                        errorMessage = null
+                    },
+                    label = { Text("Latitude") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                OutlinedTextField(
+                    value = longitudeText,
+                    onValueChange = {
+                        longitudeText = it
+                        errorMessage = null
+                    },
+                    label = { Text("Longitude") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFEF4444))
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val lat = latitudeText.toDoubleOrNull()
+                val lon = longitudeText.toDoubleOrNull()
+                if (lat != null && lon != null) {
+                    onConfirm(lat, lon)
+                } else {
+                    errorMessage = "Masukkan angka yang valid"
+                }
+            }) {
+                Text("Simpan")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }

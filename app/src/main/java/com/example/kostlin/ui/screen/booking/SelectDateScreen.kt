@@ -44,10 +44,11 @@ import java.time.format.DateTimeFormatter
 fun SelectDateScreen(
     onDateSelected: (LocalDate) -> Unit,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initialDate: LocalDate? = null
 ) {
-    var currentMonth by remember { mutableStateOf(YearMonth.now()) }
-    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var currentMonth by remember(initialDate) { mutableStateOf(initialDate?.let { YearMonth.from(it) } ?: YearMonth.now()) }
+    var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
 
     Box(
         modifier = modifier

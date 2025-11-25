@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,13 +45,13 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun RequestToBookScreen(
     kosProperty: KosProperty,
+    checkInDate: LocalDate?,
+    checkOutDate: LocalDate?,
     onBackClick: () -> Unit,
-    onSelectDateClick: () -> Unit,
+    onSelectDateClick: (DateSelectionType) -> Unit,
     onBookingClick: (BookingRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var checkInDate by remember { mutableStateOf<LocalDate?>(null) }
-    var checkOutDate by remember { mutableStateOf<LocalDate?>(null) }
     var capacity by remember { mutableStateOf(1) }
 
     Column(
@@ -116,7 +115,7 @@ fun RequestToBookScreen(
                     Card(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onSelectDateClick() },
+                            .clickable { onSelectDateClick(DateSelectionType.CHECK_IN) },
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
@@ -150,7 +149,7 @@ fun RequestToBookScreen(
                     Card(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onSelectDateClick() },
+                            .clickable { onSelectDateClick(DateSelectionType.CHECK_OUT) },
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
@@ -279,37 +278,39 @@ fun RequestToBookScreen(
         }
 
         // Booking Button
-        Button(
-            onClick = {
-                if (checkInDate != null && checkOutDate != null) {
-                    onBookingClick(
-                        BookingRequest(
-                            kosId = kosProperty.id,
-                            checkInDate = checkInDate,
-                            checkOutDate = checkOutDate,
-                            capacity = capacity
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                onClick = {
+                    if (checkInDate != null && checkOutDate != null) {
+                        onBookingClick(
+                            BookingRequest(
+                                kosId = kosProperty.id,
+                                checkInDate = checkInDate,
+                                checkOutDate = checkOutDate,
+                                capacity = capacity
+                            )
                         )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF0057FF),
+                    disabledContainerColor = Color(0xFFCED4DA),
+                    disabledContentColor = Color(0xFF9CA3AF)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                enabled = checkInDate != null && checkOutDate != null
+            ) {
+                Text(
+                    text = "Proses Booking",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (checkInDate != null && checkOutDate != null) Color.White else Color(0xFF9CA3AF)
                     )
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF5876FF),
-                disabledContainerColor = Color(0xFFCED4DA)
-            ),
-            shape = RoundedCornerShape(12.dp),
-            enabled = checkInDate != null && checkOutDate != null
-        ) {
-            Text(
-                text = "Pesan Sekarang",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = if (checkInDate != null && checkOutDate != null) Color.White else Color(0xFF9CA3AF)
                 )
-            )
+            }
         }
     }
 }

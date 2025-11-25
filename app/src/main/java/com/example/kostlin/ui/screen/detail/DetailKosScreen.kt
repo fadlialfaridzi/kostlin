@@ -65,6 +65,7 @@ import com.example.kostlin.ui.screen.booking.BookingLoadingScreen
 import com.example.kostlin.ui.screen.booking.BookingSuccessScreen
 import com.example.kostlin.ui.screen.booking.BookingRequest
 import com.example.kostlin.ui.screen.booking.BookingDetail
+import com.example.kostlin.ui.screen.booking.DateSelectionType
 import java.time.LocalDate
 
 enum class BookingStep {
@@ -91,6 +92,7 @@ fun DetailKosScreen(
     var bookingRequest by remember { mutableStateOf<BookingRequest?>(null) }
     var selectedCheckInDate by remember { mutableStateOf<LocalDate?>(null) }
     var selectedCheckOutDate by remember { mutableStateOf<LocalDate?>(null) }
+    var selectingDateType by remember { mutableStateOf<DateSelectionType?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -184,8 +186,17 @@ fun DetailKosScreen(
             BookingStep.REQUEST_TO_BOOK -> {
                 RequestToBookScreen(
                     kosProperty = kosProperty,
+                    checkInDate = selectedCheckInDate,
+                    checkOutDate = selectedCheckOutDate,
                     onBackClick = { bookingStep = null },
-                    onSelectDateClick = { bookingStep = BookingStep.SELECT_DATE },
+                    onSelectDateClick = { type ->
+                        selectingDateType = if (type == DateSelectionType.CHECK_OUT && selectedCheckInDate == null) {
+                            DateSelectionType.CHECK_IN
+                        } else {
+                            type
+                        }
+                        bookingStep = BookingStep.SELECT_DATE
+                    },
                     onBookingClick = { request ->
                         bookingRequest = request
                         bookingStep = BookingStep.CHECKOUT
@@ -195,19 +206,35 @@ fun DetailKosScreen(
 
             BookingStep.SELECT_DATE -> {
                 SelectDateScreen(
-                    onDateSelected = { date ->
-                        if (selectedCheckInDate == null) {
-                            selectedCheckInDate = date
-                        } else {
-                            selectedCheckOutDate = date
-                            // Update booking request with dates
-                            bookingRequest = bookingRequest?.copy(
-                                checkInDate = selectedCheckInDate,
-                                checkOutDate = date
-                            )
-                        }
+                    initialDate = when (selectingDateType) {
+                        DateSelectionType.CHECK_IN -> selectedCheckInDate
+                        DateSelectionType.CHECK_OUT -> selectedCheckOutDate
+                        null -> null
                     },
-                    onBackClick = { bookingStep = BookingStep.REQUEST_TO_BOOK }
+                    onDateSelected = { date ->
+                        when (selectingDateType) {
+                            DateSelectionType.CHECK_IN -> {
+                                selectedCheckInDate = date
+                                if (selectedCheckOutDate != null && !date.isBefore(selectedCheckOutDate)) {
+                                    selectedCheckOutDate = null
+                                }
+                            }
+                            DateSelectionType.CHECK_OUT -> {
+                                selectedCheckOutDate = if (selectedCheckInDate != null && date.isBefore(selectedCheckInDate)) {
+                                    selectedCheckOutDate
+                                } else {
+                                    date
+                                }
+                            }
+                            null -> Unit
+                        }
+                        selectingDateType = null
+                        bookingStep = BookingStep.REQUEST_TO_BOOK
+                    },
+                    onBackClick = {
+                        selectingDateType = null
+                        bookingStep = BookingStep.REQUEST_TO_BOOK
+                    }
                 )
             }
 

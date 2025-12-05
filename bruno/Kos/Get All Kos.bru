@@ -1,0 +1,33 @@
+meta {
+  name: Get All Kos
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/kos
+  body: none
+  auth: none
+}
+
+params:query {
+  type: 
+  minPrice: 
+  maxPrice: 
+  search: 
+  popular: 
+  recommended: 
+}
+
+docs {
+  # Get All Kos
+  
+  Mendapatkan semua kos dengan optional filters:
+  - type: PUTRA, PUTRI, atau CAMPUR
+  - minPrice: harga minimum
+  - maxPrice: harga maksimum
+  - search: pencarian berdasarkan nama, lokasi, atau deskripsi
+  - popular: true/false untuk kos populer
+  - recommended: true/false untuk kos recommended
+}
+

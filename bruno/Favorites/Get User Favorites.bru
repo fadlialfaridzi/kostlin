@@ -1,0 +1,23 @@
+meta {
+  name: Get User Favorites
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/favorites
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+docs {
+  # Get User Favorites
+  
+  Mendapatkan daftar semua kos favorit user.
+  Memerlukan authentication token.
+}
+

@@ -1,0 +1,27 @@
+meta {
+  name: Remove from Favorite
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{baseUrl}}/api/favorites/:kosId
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+params:path {
+  kosId: 1
+}
+
+docs {
+  # Remove from Favorite
+  
+  Menghapus kos dari daftar favorit.
+  Memerlukan authentication token.
+}
+

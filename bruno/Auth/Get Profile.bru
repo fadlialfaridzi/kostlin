@@ -1,0 +1,23 @@
+meta {
+  name: Get Profile
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/auth/profile
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+docs {
+  # Get Profile
+  
+  Mendapatkan profil user yang sedang login.
+  Memerlukan token authentication.
+}
+

@@ -1,0 +1,27 @@
+meta {
+  name: Check Favorite Status
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/favorites/check/:kosId
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+params:path {
+  kosId: 1
+}
+
+docs {
+  # Check Favorite Status
+  
+  Mengecek apakah kos sudah ada di favorit atau belum.
+  Memerlukan authentication token.
+}
+

@@ -1,0 +1,23 @@
+meta {
+  name: Search Kos
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/kos/search
+  body: none
+  auth: none
+}
+
+params:query {
+  q: padang
+}
+
+docs {
+  # Search Kos
+  
+  Mencari kos berdasarkan keyword.
+  Mencari di nama, lokasi, deskripsi, dan fasilitas.
+}
+

@@ -1,0 +1,23 @@
+meta {
+  name: Get Kos By ID
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/kos/:id
+  body: none
+  auth: none
+}
+
+params:path {
+  id: 1
+}
+
+docs {
+  # Get Kos By ID
+  
+  Mendapatkan detail kos berdasarkan ID.
+  Termasuk fasilitas dan reviews.
+}
+

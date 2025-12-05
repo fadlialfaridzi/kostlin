@@ -1,0 +1,30 @@
+meta {
+  name: Verify OTP
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/auth/verify-otp
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "john.doe@example.com",
+    "code": "123456"
+  }
+}
+
+docs {
+  # Verify OTP
+  
+  Verifikasi OTP yang diterima dari email.
+  Setelah verifikasi berhasil, bisa lanjut ke reset password.
+}
+

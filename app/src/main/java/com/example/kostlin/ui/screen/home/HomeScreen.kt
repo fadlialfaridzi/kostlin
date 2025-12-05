@@ -58,6 +58,8 @@ import com.example.kostlin.data.model.KosType
 import com.example.kostlin.ui.screen.detail.DetailKosScreen
 import com.example.kostlin.ui.screen.favorite.FavoriteKosScreen
 import com.example.kostlin.ui.screen.add.AddKosScreen
+import com.example.kostlin.ui.screen.allkos.AllKosScreen
+import com.example.kostlin.ui.screen.profile.ProfileScreen
 private data class Category(
     val label: String,
     val type: KosType? = null
@@ -75,7 +77,8 @@ fun HomeScreen(
     var selectedKosProperty by remember { mutableStateOf<KosProperty?>(null) }
     var showFavoriteScreen by remember { mutableStateOf(false) }
     var showAddKosScreen by remember { mutableStateOf(false) }
-    var showPopularPropertiesScreen by remember { mutableStateOf(false) }
+    var showAllKosScreen by remember { mutableStateOf(false) }
+    var showProfileScreen by remember { mutableStateOf(false) }
 
     val popularProperties = KosDummyData.getPopularProperties()
 
@@ -98,14 +101,13 @@ fun HomeScreen(
     }
 
     when {
-        showPopularPropertiesScreen -> {
-            PopularPropertiesScreen(
-                onBackClick = { showPopularPropertiesScreen = false },
-                onPropertyClick = { property ->
-                    selectedKosProperty = property
-                    showPopularPropertiesScreen = false
-                },
-                modifier = modifier
+        showAllKosScreen -> {
+            AllKosScreen(
+                onBackClick = { showAllKosScreen = false },
+                onKosClick = { kosProperty ->
+                    selectedKosProperty = kosProperty
+                    showAllKosScreen = false
+                }
             )
         }
         selectedKosProperty != null -> {
@@ -155,6 +157,14 @@ fun HomeScreen(
                 modifier = modifier
             )
         }
+        showProfileScreen -> {
+            ProfileScreen(
+                userName = displayName,
+                userEmail = "jiharmok@example.com", // Replace with actual user email
+                onBackClick = { showProfileScreen = false },
+                onChangePasswordClick = { /* TODO: Handle change password */ }
+            )
+        }
         else -> {
         Scaffold(
         modifier = modifier.background(Color(0xFFF7F9FF)),
@@ -165,7 +175,7 @@ fun HomeScreen(
                     when (route) {
                         BottomNavRoute.FAVORITE.route -> showFavoriteScreen = true
                         BottomNavRoute.ADD.route -> showAddKosScreen = true
-                        // TODO: Handle other navigation routes
+                        BottomNavRoute.PROFILE.route -> showProfileScreen = true
                     }
                 }
             )
@@ -195,7 +205,6 @@ fun HomeScreen(
                 SectionTitle(
                     title = "Paling Populer",
                     actionLabel = "Lihat Semua",
-                    onActionClick = { showPopularPropertiesScreen = true }
                 )
             }
 
@@ -222,7 +231,8 @@ fun HomeScreen(
                 }
                 SectionTitle(
                     title = sectionTitle,
-                    actionLabel = "Lihat Semua"
+                    actionLabel = "Lihat Semua",
+                    onActionClick = { showAllKosScreen = true }
                 )
             }
 

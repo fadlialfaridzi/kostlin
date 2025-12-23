@@ -157,69 +157,75 @@ fun OnboardingScreen(
                 }
             }
 
-            // Indicators
-            Row(
+            // Indicators and Button Container - moved upward
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(bottom = 48.dp), // Increased bottom padding to push content up
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                repeat(pages.size) { index ->
-                    val scale by animateFloatAsState(
-                        targetValue = if (index == currentPage) 1.2f else 1f,
-                        animationSpec = tween(300)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (index == currentPage) ButtonBlue
-                                else Color.White.copy(alpha = 0.5f)
-                            )
-                            .let {
-                                if (index == currentPage) {
-                                    it
-                                        .padding(horizontal = 4.dp)
-                                        .size(width = 24.dp, height = 8.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                } else {
-                                    it
+                // Indicators
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(pages.size) { index ->
+                        val scale by animateFloatAsState(
+                            targetValue = if (index == currentPage) 1.2f else 1f,
+                            animationSpec = tween(300)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (index == currentPage) ButtonBlue
+                                    else Color.White.copy(alpha = 0.5f)
+                                )
+                                .let {
+                                    if (index == currentPage) {
+                                        it
+                                            .padding(horizontal = 4.dp)
+                                            .size(width = 24.dp, height = 8.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                    } else {
+                                        it
+                                    }
                                 }
-                            }
-                    )
-                    if (index < pages.size - 1) {
-                        Spacer(modifier = Modifier.size(8.dp))
+                        )
+                        if (index < pages.size - 1) {
+                            Spacer(modifier = Modifier.size(8.dp))
+                        }
                     }
                 }
-            }
 
-            // Button
-            Button(
-                onClick = {
-                    if (currentPage < pages.size - 1) {
-                        isTransitioning = true
-                        currentPage++
-                        isTransitioning = false
-                    } else {
-                        onOnboardingFinished()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ButtonBlue)
-            ) {
-                Text(
-                    text = if (currentPage == pages.size - 1) "Get Started" else "Continue",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
-                )
+                // Button
+                Button(
+                    onClick = {
+                        if (currentPage < pages.size - 1) {
+                            isTransitioning = true
+                            currentPage++
+                            isTransitioning = false
+                        } else {
+                            onOnboardingFinished()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ButtonBlue)
+                ) {
+                    Text(
+                        text = if (currentPage == pages.size - 1) "Get Started" else "Continue",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

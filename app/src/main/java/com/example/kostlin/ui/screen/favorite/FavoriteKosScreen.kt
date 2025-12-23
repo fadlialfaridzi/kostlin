@@ -1,6 +1,5 @@
 package com.example.kostlin.ui.screen.favorite
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,17 +17,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +31,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,50 +42,71 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.kostlin.data.model.FavoriteKos
-import com.example.kostlin.data.model.KosDummyData
-import com.example.kostlin.data.model.KosProperty
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.kostlin.domain.model.FavoriteEntry
+import com.example.kostlin.domain.model.FavoriteStatus
+import com.example.kostlin.domain.model.Kos
+import com.example.kostlin.domain.model.Booking
 import com.example.kostlin.ui.components.BottomNavigation
 import com.example.kostlin.ui.components.BottomNavRoute
+import com.example.kostlin.ui.screen.booking.BookingViewModel
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.runtime.LaunchedEffect
+import java.text.NumberFormat
+import java.util.Locale
 
 @Composable
 fun FavoriteKosScreen(
     onBackClick: () -> Unit,
-    onKosClick: (KosProperty) -> Unit,
+    onKosClick: (Kos) -> Unit,
+    favoriteViewModel: FavoriteViewModel,
+    bookingViewModel: BookingViewModel,
     onNavigate: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val favoriteState by favoriteViewModel.uiState.collectAsState()
+    val bookingState by bookingViewModel.uiState.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
     
-    val favoriteKosList = remember { KosDummyData.getFavoriteKosList() }
-    val favoriteKosHistory = remember { KosDummyData.getFavoriteKosHistory() }
-    
-    val filteredFavorites = remember(searchQuery, selectedTabIndex) {
-        val list = if (selectedTabIndex == 0) favoriteKosList else favoriteKosHistory
+    // Fetch bookings when opening History tab
+    LaunchedEffect(selectedTabIndex) {
+        if (selectedTabIndex == 1) {
+            bookingViewModel.fetchBookings()
+        }
+    }
+
+    val favorites = remember(searchQuery, selectedTabIndex, favoriteState.favorites) {
+        val list = favoriteState.favorites.filter { it.status == FavoriteStatus.ACTIVE }
         if (searchQuery.isBlank()) {
             list
         } else {
-            list.filter { 
-                it.kosProperty.name.contains(searchQuery, ignoreCase = true) ||
-                it.kosProperty.location.contains(searchQuery, ignoreCase = true)
+            list.filter { entry ->
+                entry.kos.name.contains(searchQuery, ignoreCase = true) ||
+                entry.kos.address.contains(searchQuery, ignoreCase = true) ||
+                entry.kos.city.contains(searchQuery, ignoreCase = true)
             }
         }
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            BottomNavigation(
-                currentRoute = BottomNavRoute.FAVORITE.route,
-                onNavigate = onNavigate
-            )
-        }
+        modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -106,37 +119,96 @@ fun FavoriteKosScreen(
             onBackClick = onBackClick
         )
         
-        // Search Bar
-        SearchSection(
-            searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it }
-        )
+        // Search Bar (only show for favorites tab)
+        if (selectedTabIndex == 0) {
+            SearchSection(
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it }
+            )
+        }
         
         // Tab Section
         TabSection(
             selectedTabIndex = selectedTabIndex,
-            onTabSelected = { selectedTabIndex = it },
-            favoriteCount = favoriteKosList.size,
-            historyCount = favoriteKosHistory.size
+            onTabSelected = { index ->
+                selectedTabIndex = index
+            },
+            favoriteCount = favoriteState.favorites.count { it.status == FavoriteStatus.ACTIVE },
+            historyCount = bookingState.bookings.size
         )
         
         // Content
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(filteredFavorites) { favoriteKos ->
-                FavoriteKosItem(
-                    favoriteKos = favoriteKos,
-                    onClick = { onKosClick(favoriteKos.kosProperty) }
-                )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            if ((selectedTabIndex == 0 && favoriteState.isLoading) || 
+                (selectedTabIndex == 1 && bookingState.isLoading)) {
+                CircularProgressIndicator(color = Color(0xFF5876FF))
             }
-            
-            // Add some bottom padding
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        if (selectedTabIndex == 0) {
+            // Favorites Tab
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(favorites) { favoriteEntry ->
+                    FavoriteKosItem(
+                        favoriteEntry = favoriteEntry,
+                        onClick = { onKosClick(favoriteEntry.kos) },
+                        onRemove = {
+                            favoriteViewModel.removeFavorite(favoriteEntry.kos.id.toIntOrNull() ?: 0)
+                        }
+                    )
+                }
+                
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        } else {
+            // History Tab - Booking History
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (bookingState.bookings.isEmpty() && !bookingState.isLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "📋",
+                                    style = MaterialTheme.typography.displayMedium
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Belum ada riwayat booking",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        color = Color(0xFF6B7280)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(bookingState.bookings) { booking ->
+                        BookingHistoryItem(booking = booking)
+                    }
+                }
+                
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
         }
@@ -299,9 +371,14 @@ private fun TabSection(
 
 @Composable
 private fun FavoriteKosItem(
-    favoriteKos: FavoriteKos,
-    onClick: () -> Unit
+    favoriteEntry: FavoriteEntry,
+    onClick: () -> Unit,
+    onRemove: () -> Unit
 ) {
+    val kos = favoriteEntry.kos
+    val priceFormatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    val formattedPrice = priceFormatter.format(kos.pricePerMonth).replace(",00", "")
+    val location = "${kos.address}, ${kos.city}"
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -316,25 +393,55 @@ private fun FavoriteKosItem(
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Kos Image
+            // Kos Image with actual image from database
             Box(
                 modifier = Modifier
                     .size(100.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        brush = when (favoriteKos.kosProperty.id % 3) {
-                            0 -> Brush.linearGradient(listOf(Color(0xFF6B8E23), Color(0xFF8FBC8F)))
-                            1 -> Brush.linearGradient(listOf(Color(0xFF4682B4), Color(0xFF87CEEB)))
-                            else -> Brush.linearGradient(listOf(Color(0xFFCD853F), Color(0xFFDEB887)))
-                        }
-                    ),
+                    .clip(RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                // Placeholder for kos image
-                Text(
-                    text = "🏠",
-                    fontSize = 32.sp
-                )
+                // Try to use thumbnailUrl or first image from images list
+                val imageUrl = kos.thumbnailUrl ?: kos.images.firstOrNull()
+                
+                if (imageUrl != null) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = kos.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    // Fallback gradient with icon
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.linearGradient(listOf(Color(0xFF5876FF), Color(0xFF8BA4FF)))
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🏠",
+                            fontSize = 32.sp
+                        )
+                    }
+                }
+                
+                // Favorite badge
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .background(Color.White, CircleShape)
+                        .padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Favorited",
+                        tint = Color.Red,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
             
             // Kos Details
@@ -356,7 +463,7 @@ private fun FavoriteKosItem(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = favoriteKos.kosProperty.rating,
+                        text = String.format("%.1f", kos.rating),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF1B2633)
@@ -366,7 +473,7 @@ private fun FavoriteKosItem(
                 
                 // Kos Name
                 Text(
-                    text = favoriteKos.kosProperty.name,
+                    text = kos.name,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1B2633)
@@ -387,7 +494,7 @@ private fun FavoriteKosItem(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = favoriteKos.kosProperty.location,
+                        text = location,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = Color(0xFF9E9E9E)
                         ),
@@ -398,7 +505,7 @@ private fun FavoriteKosItem(
                 
                 // Price
                 Text(
-                    text = favoriteKos.kosProperty.price,
+                    text = formattedPrice,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF5876FF),
@@ -423,7 +530,7 @@ private fun FavoriteKosItem(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Ditambahkan ${favoriteKos.dateAdded}",
+                            text = "Ditambahkan ${favoriteEntry.dateAdded}",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = Color(0xFF9E9E9E)
                             )
@@ -443,7 +550,7 @@ private fun FavoriteKosItem(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = when (favoriteKos.kosProperty.type.name) {
+                        text = when (kos.type.name) {
                             "PUTRA" -> "Kos Putra"
                             "PUTRI" -> "Kos Putri"
                             "CAMPUR" -> "Kos Campur"
@@ -453,6 +560,173 @@ private fun FavoriteKosItem(
                             color = Color(0xFF9E9E9E)
                         )
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookingHistoryItem(
+    booking: Booking,
+    modifier: Modifier = Modifier
+) {
+    val priceFormatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    val formattedPrice = priceFormatter.format(booking.totalPrice).replace(",00", "")
+    
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Kos Image
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                val imageUrl = booking.kos?.thumbnailUrl
+                if (imageUrl != null) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = booking.kos?.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF5876FF), Color(0xFF8B9DFF))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🏠", style = MaterialTheme.typography.headlineMedium)
+                    }
+                }
+            }
+            
+            // Booking Details
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Kos Name
+                Text(
+                    text = booking.kos?.name ?: "Kos #${booking.kosId}",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1B2633)
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                // Location
+                if (booking.kos?.address != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Location",
+                            tint = Color(0xFF6B7280),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = booking.kos.address,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = Color(0xFF6B7280)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                
+                // Booking Type & Room Quantity
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFF0F4FF)
+                    ) {
+                        Text(
+                            text = if (booking.bookingType == "yearly") "Tahunan" else "Bulanan",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = Color(0xFF5876FF),
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFF5F5F5)
+                    ) {
+                        Text(
+                            text = "${booking.roomQuantity} Kamar",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = Color(0xFF6B7280),
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
+                }
+                
+                // Price and Status
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formattedPrice,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF5876FF)
+                        )
+                    )
+                    
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = when (booking.status) {
+                            "confirmed" -> Color(0xFFE8F5E9)
+                            "pending" -> Color(0xFFFFF3E0)
+                            "cancelled" -> Color(0xFFFFEBEE)
+                            else -> Color(0xFFF5F5F5)
+                        }
+                    ) {
+                        Text(
+                            text = when (booking.status) {
+                                "confirmed" -> "Dikonfirmasi"
+                                "pending" -> "Menunggu"
+                                "cancelled" -> "Dibatalkan"
+                                else -> booking.status
+                            },
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = when (booking.status) {
+                                    "confirmed" -> Color(0xFF4CAF50)
+                                    "pending" -> Color(0xFFFF9800)
+                                    "cancelled" -> Color(0xFFF44336)
+                                    else -> Color(0xFF6B7280)
+                                }
+                            )
+                        )
+                    }
                 }
             }
         }

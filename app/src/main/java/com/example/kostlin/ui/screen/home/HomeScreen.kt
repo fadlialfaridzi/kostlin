@@ -1,7 +1,20 @@
 package com.example.kostlin.ui.screen.home
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,13 +41,17 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,215 +62,440 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.kostlin.ui.screen.search.SearchScreen
-import com.example.kostlin.ui.components.BottomNavigation
-import com.example.kostlin.ui.components.BottomNavRoute
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.kostlin.core.di.AppContainer
 import com.example.kostlin.data.model.KosProperty
-import com.example.kostlin.data.model.KosDummyData
-import com.example.kostlin.data.model.KosType
+import com.example.kostlin.domain.model.KosCategory
+import com.example.kostlin.ui.components.BottomNavRoute
+import com.example.kostlin.ui.components.BottomNavigation
+import com.example.kostlin.ui.model.toKosProperty
 import com.example.kostlin.ui.screen.detail.DetailKosScreen
 import com.example.kostlin.ui.screen.favorite.FavoriteKosScreen
+import com.example.kostlin.ui.screen.favorite.FavoriteViewModel
+import com.example.kostlin.ui.screen.favorite.FavoriteViewModelFactory
 import com.example.kostlin.ui.screen.add.AddKosScreen
+import com.example.kostlin.ui.screen.add.AddKosViewModel
+import com.example.kostlin.ui.screen.add.AddKosViewModelFactory
 import com.example.kostlin.ui.screen.allkos.AllKosScreen
 import com.example.kostlin.ui.screen.profile.ProfileScreen
+import com.example.kostlin.ui.screen.profile.ProfileViewModel
+import com.example.kostlin.ui.screen.profile.ProfileViewModelFactory
+import com.example.kostlin.ui.screen.search.SearchScreen
+import com.example.kostlin.ui.screen.map.MapKosScreen
+import com.example.kostlin.ui.screen.booking.BookingViewModel
+import com.example.kostlin.ui.screen.booking.BookingViewModelFactory
+import com.example.kostlin.ui.screen.edit.EditKosScreen
+import com.example.kostlin.ui.screen.edit.EditKosViewModel
+import com.example.kostlin.ui.screen.edit.EditKosViewModelFactory
+import com.example.kostlin.core.network.NetworkClient
+
 private data class Category(
     val label: String,
-    val type: KosType? = null
+    val type: KosCategory? = null
 )
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     userName: String,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    homeViewModel: HomeViewModel
 ) {
+    val context = LocalContext.current
     val displayName = userName.ifBlank { "Mr. Jiharmok" }
+    
+    // Shared FavoriteViewModel for DetailKosScreen and FavoriteKosScreen
+    val favoriteViewModel: FavoriteViewModel = viewModel(
+        factory = FavoriteViewModelFactory(AppContainer.favoriteRepository)
+    )
+    
+    // Shared BookingViewModel for booking history
+    val bookingViewModel: BookingViewModel = viewModel(
+        factory = BookingViewModelFactory(AppContainer.bookingRepository)
+    )
+    
+    // ProfileViewModel for profile page
+    val profileViewModel: ProfileViewModel = viewModel(
+        factory = ProfileViewModelFactory(NetworkClient.apiService)
+    )
+    
+    // EditKosViewModel for editing kos
+    val editKosViewModel: EditKosViewModel = viewModel(
+        factory = EditKosViewModelFactory(NetworkClient.apiService)
+    )
+    
     var showSearchScreen by remember { mutableStateOf(false) }
-    var selectedCategoryIndex by remember { mutableStateOf(0) }
+    var showMapScreen by remember { mutableStateOf(false) }
     var selectedKosProperty by remember { mutableStateOf<KosProperty?>(null) }
     var showFavoriteScreen by remember { mutableStateOf(false) }
     var showAddKosScreen by remember { mutableStateOf(false) }
     var showAllKosScreen by remember { mutableStateOf(false) }
     var showProfileScreen by remember { mutableStateOf(false) }
-
-    val popularProperties = KosDummyData.getPopularProperties()
+    var selectedKosToEdit by remember { mutableStateOf<com.example.kostlin.domain.model.Kos?>(null) }
+    val uiState by homeViewModel.uiState.collectAsState()
+    
+    // Location permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        homeViewModel.onLocationPermissionResult(fineLocationGranted || coarseLocationGranted)
+    }
+    
+    // Initialize location and request permission on first composition
+    LaunchedEffect(Unit) {
+        homeViewModel.initLocation(context)
+        if (!homeViewModel.hasLocationPermission()) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        } else {
+            homeViewModel.fetchUserLocation()
+        }
+    }
 
     val categories = listOf(
         Category("All"),
-        Category("Kos Putra", KosType.PUTRA),
-        Category("Kos Putri", KosType.PUTRI),
-        Category("Kos Campur", KosType.CAMPUR)
+        Category("Kos Putra", KosCategory.PUTRA),
+        Category("Kos Putri", KosCategory.PUTRI),
+        Category("Kos Campur", KosCategory.CAMPUR)
     )
-
-    val recommendations = remember(selectedCategoryIndex) {
-        val selectedCategory = categories[selectedCategoryIndex]
-        when {
-            selectedCategory.type == null -> KosDummyData.allKosProperties // All
-            selectedCategory.type == KosType.PUTRA -> KosDummyData.getPropertiesByType(KosType.PUTRA)
-            selectedCategory.type == KosType.PUTRI -> KosDummyData.getPropertiesByType(KosType.PUTRI)
-            selectedCategory.type == KosType.CAMPUR -> KosDummyData.getPropertiesByType(KosType.CAMPUR)
-            else -> KosDummyData.getRecommendedProperties()
-        }
+    val selectedCategoryIndex = remember(uiState.selectedCategory) {
+        categories.indexOfFirst { it.type == uiState.selectedCategory }.takeIf { it >= 0 } ?: 0
     }
 
-    when {
-        showAllKosScreen -> {
-            AllKosScreen(
-                onBackClick = { showAllKosScreen = false },
-                onKosClick = { kosProperty ->
-                    selectedKosProperty = kosProperty
-                    showAllKosScreen = false
-                }
-            )
-        }
-        selectedKosProperty != null -> {
-            DetailKosScreen(
-                kosProperty = selectedKosProperty!!,
-                onBackClick = { selectedKosProperty = null },
-                onBookingClick = { /* TODO: Handle booking */ },
-                modifier = modifier
-            )
-        }
-        showAddKosScreen -> {
-            AddKosScreen(
-                onBackClick = { showAddKosScreen = false },
-                onNavigate = { route ->
-                    when (route) {
-                        BottomNavRoute.HOME.route -> showAddKosScreen = false
-                        BottomNavRoute.FAVORITE.route -> {
-                            showAddKosScreen = false
-                            showFavoriteScreen = true
-                        }
-                        // Handle other routes
-                    }
-                },
-                modifier = modifier
-            )
-        }
-        showFavoriteScreen -> {
-            FavoriteKosScreen(
-                onBackClick = { showFavoriteScreen = false },
-                onKosClick = { kosProperty -> selectedKosProperty = kosProperty },
-                onNavigate = { route ->
-                    when (route) {
-                        BottomNavRoute.HOME.route -> showFavoriteScreen = false
-                        BottomNavRoute.ADD.route -> {
-                            showFavoriteScreen = false
-                            showAddKosScreen = true
-                        }
-                        // Handle other routes
-                    }
-                },
-                modifier = modifier
-            )
-        }
-        showSearchScreen -> {
-            SearchScreen(
-                onBackClick = { showSearchScreen = false },
-                modifier = modifier
-            )
-        }
-        showProfileScreen -> {
-            ProfileScreen(
-                userName = displayName,
-                userEmail = "jiharmok@example.com", // Replace with actual user email
-                onBackClick = { showProfileScreen = false },
-                onChangePasswordClick = { /* TODO: Handle change password */ }
-            )
-        }
-        else -> {
-        Scaffold(
+    // Screen visibility states for animations
+    val showHomeContent = !showAllKosScreen && selectedKosProperty == null && !showAddKosScreen && 
+                          !showFavoriteScreen && !showSearchScreen && !showProfileScreen && !showMapScreen
+    
+    // Determine current route for bottom navigation
+    val currentRoute = when {
+        showFavoriteScreen -> BottomNavRoute.FAVORITE.route
+        showProfileScreen -> BottomNavRoute.PROFILE.route
+        showAddKosScreen -> BottomNavRoute.ADD.route
+        else -> BottomNavRoute.HOME.route
+    }
+    
+    // Show bottom navigation only on main screens (not on detail, search, map, edit, etc.)
+    val showBottomNav = !showAllKosScreen && selectedKosProperty == null && 
+                        !showSearchScreen && !showMapScreen && selectedKosToEdit == null
+    
+    Scaffold(
         modifier = modifier.background(Color(0xFFF7F9FF)),
         bottomBar = {
-            BottomNavigation(
-                currentRoute = BottomNavRoute.HOME.route,
-                onNavigate = { route ->
-                    when (route) {
-                        BottomNavRoute.FAVORITE.route -> showFavoriteScreen = true
-                        BottomNavRoute.ADD.route -> showAddKosScreen = true
-                        BottomNavRoute.PROFILE.route -> showProfileScreen = true
+            if (showBottomNav) {
+                BottomNavigation(
+                    currentRoute = currentRoute,
+                    onNavigate = { route ->
+                        when (route) {
+                            BottomNavRoute.HOME.route -> {
+                                showFavoriteScreen = false
+                                showProfileScreen = false
+                                showAddKosScreen = false
+                            }
+                            BottomNavRoute.FAVORITE.route -> {
+                                showFavoriteScreen = true
+                                showProfileScreen = false
+                                showAddKosScreen = false
+                            }
+                            BottomNavRoute.ADD.route -> {
+                                showAddKosScreen = true
+                                showFavoriteScreen = false
+                                showProfileScreen = false
+                            }
+                            BottomNavRoute.PROFILE.route -> {
+                                showProfileScreen = true
+                                showFavoriteScreen = false
+                                showAddKosScreen = false
+                            }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                HeaderSection(
-                    name = displayName,
-                    onLogout = onLogout,
-                    onSearchClick = { showSearchScreen = true }
-                )
-            }
-
-            item {
-                LocationBanner()
-            }
-
-            item {
-                SectionTitle(
-                    title = "Paling Populer",
-                    actionLabel = "Lihat Semua",
-                )
-            }
-
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            // Home Screen (base layer)
+            AnimatedVisibility(
+                visible = showHomeContent,
+                enter = fadeIn(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(300))
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    items(popularProperties) { property ->
-                        PopularPropertyCard(
-                            property = property,
-                            onClick = { selectedKosProperty = property }
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HeaderSection(
+                            name = displayName,
+                            cityName = uiState.userCity,
+                            isLocationLoading = uiState.isLocationLoading,
+                            onLogout = onLogout,
+                            onSearchClick = { showSearchScreen = true }
                         )
                     }
+
+                    item {
+                        LocationBanner(
+                            onChangeLocation = { showMapScreen = true }
+                        )
+                    }
+
+                    item {
+                        SectionTitle(
+                            title = "Paling Populer",
+                            actionLabel = "Lihat Semua",
+                        )
+                    }
+
+                    item {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(uiState.popularKos) { property ->
+                                PopularPropertyCard(
+                                    property = property,
+                                    onClick = { selectedKosProperty = property }
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        SectionTitle(
+                            title = "Semua Kos",
+                            actionLabel = if (uiState.recommendations.size > 5) "Lihat Semua" else "",
+                            onActionClick = { showAllKosScreen = true }
+                        )
+                    }
+
+                    // Show only first 5 recommendations vertically
+                    items(uiState.recommendations.take(5)) { item ->
+                        RecommendationCard(
+                            property = item,
+                            onClick = { selectedKosProperty = item }
+                        )
+                    }
+                    
+                    // Show "Lihat Semua" button if more than 5 items
+                    if (uiState.recommendations.size > 5) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                TextButton(onClick = { showAllKosScreen = true }) {
+                                    Text(
+                                        text = "Lihat ${uiState.recommendations.size - 5} kos lainnya →",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = Color(0xFF5876FF),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "🔄 Tap untuk refresh",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color(0xFF5876FF),
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                modifier = Modifier
+                                    .padding(vertical = 8.dp)
+                                    .clickable { homeViewModel.refreshHome(forcePopular = true) }
+                            )
+                        }
+                    }
                 }
             }
-
-            item {
-                val sectionTitle = when (selectedCategoryIndex) {
-                    0 -> "Semua Kos"
-                    1 -> "Kos Putra"
-                    2 -> "Kos Putri"
-                    3 -> "Kos Campur"
-                    else -> "Rekomendasi Untuk Anda"
-                }
-                SectionTitle(
-                    title = sectionTitle,
-                    actionLabel = "Lihat Semua",
-                    onActionClick = { showAllKosScreen = true }
-                )
-            }
-
-            item {
-                CategoryRow(
-                    categories = categories,
-                    selectedIndex = selectedCategoryIndex,
-                    onCategoryClick = { index ->
-                        selectedCategoryIndex = index
+            
+            // All Kos Screen
+            AnimatedVisibility(
+                visible = showAllKosScreen,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300))
+            ) {
+                AllKosScreen(
+                    onBackClick = { showAllKosScreen = false },
+                    kosList = uiState.recommendations,
+                    onKosClick = { kosProperty ->
+                        selectedKosProperty = kosProperty
+                        showAllKosScreen = false
                     }
                 )
             }
-
-            items(recommendations) { item ->
-                RecommendationCard(
-                    property = item,
-                    onClick = { selectedKosProperty = item }
+            
+            // Detail Kos Screen
+            AnimatedVisibility(
+                visible = selectedKosProperty != null,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300))
+            ) {
+                selectedKosProperty?.let { property ->
+                    DetailKosScreen(
+                        kosProperty = property,
+                        onBackClick = { selectedKosProperty = null },
+                        onBookingClick = { /* Navigate back to home after booking */ },
+                        favoriteViewModel = favoriteViewModel,
+                        bookingViewModel = bookingViewModel,
+                        modifier = Modifier
+                    )
+                }
+            }
+            
+            // Add Kos Screen with inner Scaffold for its own top bar
+            AnimatedVisibility(
+                visible = showAddKosScreen,
+                enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) + fadeIn(tween(300)),
+                exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) + fadeOut(tween(300))
+            ) {
+                val addKosViewModel: AddKosViewModel = viewModel(
+                    factory = AddKosViewModelFactory(AppContainer.kosRepository)
+                )
+                AddKosScreen(
+                    onBackClick = { 
+                        showAddKosScreen = false
+                        homeViewModel.refreshHome(forcePopular = true)
+                    },
+                    addKosViewModel = addKosViewModel,
+                    modifier = Modifier
                 )
             }
-        }
-    }
+            
+            // Favorite Screen
+            AnimatedVisibility(
+                visible = showFavoriteScreen,
+                enter = fadeIn(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(300))
+            ) {
+                FavoriteKosScreen(
+                    onBackClick = { showFavoriteScreen = false },
+                    onKosClick = { kos -> 
+                        selectedKosProperty = kos.toKosProperty()
+                        showFavoriteScreen = false  // Close favorite screen to show detail
+                    },
+                    favoriteViewModel = favoriteViewModel,
+                    bookingViewModel = bookingViewModel,
+                    modifier = Modifier
+                )
+            }
+            
+            // Search Screen
+            AnimatedVisibility(
+                visible = showSearchScreen,
+                enter = slideInVertically(initialOffsetY = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)),
+                exit = slideOutVertically(targetOffsetY = { -it }, animationSpec = tween(300)) + fadeOut(tween(300))
+            ) {
+                SearchScreen(
+                    onBackClick = { showSearchScreen = false },
+                    onKosClick = { kos ->
+                        selectedKosProperty = kos.toKosProperty()
+                        showSearchScreen = false
+                    },
+                    modifier = Modifier
+                )
+            }
+            
+            // Map Kos Screen
+            AnimatedVisibility(
+                visible = showMapScreen,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300))
+            ) {
+                MapKosScreen(
+                    onBackClick = { showMapScreen = false },
+                    onKosClick = { kosProperty ->
+                        selectedKosProperty = kosProperty
+                        showMapScreen = false
+                    }
+                )
+            }
+            
+            // Profile Screen
+            AnimatedVisibility(
+                visible = showProfileScreen && selectedKosToEdit == null,
+                enter = fadeIn(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(300))
+            ) {
+                ProfileScreen(
+                    userName = displayName,
+                    userEmail = "jiharmok@example.com",
+                    onBackClick = { showProfileScreen = false },
+                    onChangePasswordClick = { /* TODO: Handle change password */ },
+                    onLogout = onLogout,
+                    profileViewModel = profileViewModel,
+                    onEditKos = { kos ->
+                        selectedKosToEdit = kos
+                        editKosViewModel.resetState()
+                    }
+                )
+            }
+            
+            // Edit Kos Screen
+            AnimatedVisibility(
+                visible = selectedKosToEdit != null,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300))
+            ) {
+                selectedKosToEdit?.let { kos ->
+                    EditKosScreen(
+                        kos = kos,
+                        onBackClick = { selectedKosToEdit = null },
+                        onSaveSuccess = { 
+                            selectedKosToEdit = null
+                            profileViewModel.fetchMyKos()
+                        },
+                        editKosViewModel = editKosViewModel
+                    )
+                }
+            }
+            
+            // Loading indicator
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color(0xFF5876FF))
+                }
+            }
+            
+            // Error message
+            uiState.errorMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = Color.Red,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clickable { homeViewModel.refreshHome(forcePopular = true) }
+                )
+            }
         }
     }
 }
@@ -261,6 +503,8 @@ fun HomeScreen(
 @Composable
 private fun HeaderSection(
     name: String,
+    cityName: String,
+    isLocationLoading: Boolean,
     onLogout: () -> Unit,
     onSearchClick: () -> Unit
 ) {
@@ -305,12 +549,20 @@ private fun HeaderSection(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Padang",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF4B5C6B)
+                        if (isLocationLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF5876FF)
                             )
-                        )
+                        } else {
+                            Text(
+                                text = cityName,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color(0xFF4B5C6B)
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -332,23 +584,17 @@ private fun HeaderSection(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Keluar",
-            style = MaterialTheme.typography.bodySmall.copy(
-                color = Color(0xFF5876FF),
-                fontWeight = FontWeight.Medium
-            ),
-            modifier = Modifier.clickable { onLogout() }
-        )
     }
 }
 
 @Composable
-private fun LocationBanner() {
+private fun LocationBanner(
+    onChangeLocation: () -> Unit = {}
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onChangeLocation() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF4FF))
     ) {
@@ -378,10 +624,16 @@ private fun LocationBanner() {
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Ganti lokasi untuk melihat kos terdekat",
+                        text = "Cari kos di peta",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = Color(0xFF1B2633),
                             fontWeight = FontWeight.Medium
+                        )
+                    )
+                    Text(
+                        text = "Lihat semua kos dengan lokasi",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color.Gray
                         )
                     )
                 }
@@ -445,15 +697,25 @@ private fun PopularPropertyCard(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                listOf(Color(0xFF6B8E23), Color(0xFF8FBC8F))
+                // Display actual image or fallback gradient
+                if (property.imageUrl != null) {
+                    AsyncImage(
+                        model = property.imageUrl,
+                        contentDescription = property.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(Color(0xFF6B8E23), Color(0xFF8FBC8F))
+                                )
                             )
-                        )
-                )
+                    )
+                }
                 IconButton(
                     onClick = { /* TODO favourite */ },
                     modifier = Modifier
@@ -580,23 +842,39 @@ private fun RecommendationCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Image box with AsyncImage or fallback
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            listOf(Color(0xFFF2994A), Color(0xFFF2C94C))
-                        )
-                    ),
+                    .clip(RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = rememberVectorPainter(Icons.Default.Home),
-                    contentDescription = property.name,
-                    modifier = Modifier.size(32.dp),
-                    alpha = 0.85f
-                )
+                if (property.imageUrl != null) {
+                    AsyncImage(
+                        model = property.imageUrl,
+                        contentDescription = property.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                brush = Brush.linearGradient(
+                                    listOf(Color(0xFFF2994A), Color(0xFFF2C94C))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = rememberVectorPainter(Icons.Default.Home),
+                            contentDescription = property.name,
+                            modifier = Modifier.size(32.dp),
+                            alpha = 0.85f
+                        )
+                    }
+                }
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -645,6 +923,3 @@ private fun RecommendationCard(
         }
     }
 }
-
-
-

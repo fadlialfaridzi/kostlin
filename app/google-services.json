@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "98891697244",
+    "project_id": "kostlin-dc8aa",
+    "storage_bucket": "kostlin-dc8aa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:98891697244:android:0ddf27b8f6483d0c2f2a99",
+        "android_client_info": {
+          "package_name": "com.example.kostlin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCURmirILEz8tqB_53pOJlt0ZKY1foEko"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -13,7 +13,8 @@ data class KosProperty(
     val description: String,
     val imageUrl: String? = null,
     val isPopular: Boolean = false,
-    val isRecommended: Boolean = false
+    val isRecommended: Boolean = false,
+    val ownerId: Int? = null
 )
 
 enum class KosType {

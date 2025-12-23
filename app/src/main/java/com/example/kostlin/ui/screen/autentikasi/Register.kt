@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -21,6 +20,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,28 +40,37 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import com.example.kostlin.ui.component.button.SocialLoginButton
 import com.example.kostlin.ui.theme.ButtonBlue
 import com.example.kostlin.ui.theme.DarkText
 import com.example.kostlin.ui.theme.LightText
-import com.example.kostlin.ui.theme.LinkColor
 
 @Composable
 fun RegisterScreen(
     onNavigateBack: () -> Unit,
-    onRegisterSuccess: (fullName: String, email: String) -> Unit
+    onRegisterSuccess: (fullName: String, email: String, password: String, phoneNumber: String) -> Unit,
+    isLoading: Boolean = false,
+    externalError: String? = null,
+    onClearError: () -> Unit = {}
 ) {
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
+    var localErrorMessage by remember { mutableStateOf("") }
+
+    val errorMessage = when {
+        localErrorMessage.isNotBlank() -> localErrorMessage
+        !externalError.isNullOrBlank() -> externalError
+        else -> null
+    }
 
     Box(
         modifier = Modifier
@@ -102,7 +111,7 @@ fun RegisterScreen(
 
             // Subtitle
             Text(
-                text = "Lorem ipsum dolor sit amet, consectetur",
+                text = "Daftar untuk mulai mencari kost impianmu",
                 style = MaterialTheme.typography.bodyMedium,
                 color = LightText,
                 modifier = Modifier.padding(bottom = 32.dp)
@@ -118,7 +127,11 @@ fun RegisterScreen(
                 )
                 OutlinedTextField(
                     value = fullName,
-                    onValueChange = { fullName = it; errorMessage = "" },
+                    onValueChange = {
+                        fullName = it
+                        localErrorMessage = ""
+                        onClearError()
+                    },
                     placeholder = { Text("Enter your name", color = LightText) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -143,7 +156,11 @@ fun RegisterScreen(
                 )
                 OutlinedTextField(
                     value = email,
-                    onValueChange = { email = it; errorMessage = "" },
+                    onValueChange = {
+                        email = it
+                        localErrorMessage = ""
+                        onClearError()
+                    },
                     placeholder = { Text("Enter your email address", color = LightText) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -153,7 +170,42 @@ fun RegisterScreen(
                         unfocusedBorderColor = Color.Transparent,
                         focusedBorderColor = ButtonBlue
                     ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    ),
+                    singleLine = true
+                )
+            }
+
+            // Phone Number Input
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                Text(
+                    text = "Phone Number",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = DarkText,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = {
+                        phoneNumber = it
+                        localErrorMessage = ""
+                        onClearError()
+                    },
+                    placeholder = { Text("Enter your phone number", color = LightText) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = Color(0xFFF5F5F5),
+                        focusedContainerColor = Color(0xFFF5F5F5),
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedBorderColor = ButtonBlue
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Phone,
+                        imeAction = ImeAction.Next
+                    ),
                     singleLine = true
                 )
             }
@@ -168,7 +220,11 @@ fun RegisterScreen(
                 )
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it; errorMessage = "" },
+                    onValueChange = {
+                        password = it
+                        localErrorMessage = ""
+                        onClearError()
+                    },
                     placeholder = { Text("Enter your password", color = LightText) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
@@ -193,7 +249,7 @@ fun RegisterScreen(
             }
 
             // Error message
-            if (errorMessage.isNotEmpty()) {
+            if (!errorMessage.isNullOrEmpty()) {
                 Text(
                     text = errorMessage,
                     color = Color.Red,
@@ -206,8 +262,8 @@ fun RegisterScreen(
             // Create Account Button
             Button(
                 onClick = {
-                    if (fullName.isBlank() || email.isBlank() || password.isBlank()) {
-                        errorMessage = "Please fill all fields"
+                    if (fullName.isBlank() || email.isBlank() || password.isBlank() || phoneNumber.isBlank()) {
+                        localErrorMessage = "Please fill all fields"
                     } else {
                         showTermsDialog = true
                     }
@@ -219,48 +275,6 @@ fun RegisterScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = ButtonBlue)
             ) {
                 Text(text = "Create An Account", color = Color.White, style = MaterialTheme.typography.bodyLarge)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Divider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                        .background(LightText.copy(alpha = 0.3f))
-                )
-                Text(
-                    "Or Sign In with",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = LightText,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                        .background(LightText.copy(alpha = 0.3f))
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Social Login Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SocialLoginButton(icon = "G", onClick = {})
-                Spacer(modifier = Modifier.width(16.dp))
-                SocialLoginButton(icon = "🍎", onClick = {})
-                Spacer(modifier = Modifier.width(16.dp))
-                SocialLoginButton(icon = "f", onClick = {})
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -320,8 +334,9 @@ fun RegisterScreen(
                     onClick = {
                         val trimmedName = fullName.trim()
                         val trimmedEmail = email.trim()
+                        val trimmedPhone = phoneNumber.trim()
                         showTermsDialog = false
-                        onRegisterSuccess(trimmedName, trimmedEmail)
+                        onRegisterSuccess(trimmedName, trimmedEmail, password, trimmedPhone)
                     }
                 ) {
                     Text("Agree", color = ButtonBlue)
@@ -335,5 +350,16 @@ fun RegisterScreen(
                 }
             }
         )
+    }
+
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = ButtonBlue)
+        }
     }
 }

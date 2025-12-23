@@ -39,13 +39,13 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.kostlin.data.model.KosDummyData
 import com.example.kostlin.data.model.KosProperty
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllKosScreen(
     onBackClick: () -> Unit,
+    kosList: List<KosProperty>,
     onKosClick: (KosProperty) -> Unit
 ) {
     Scaffold(
@@ -67,7 +67,7 @@ fun AllKosScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            items(KosDummyData.allKosProperties) { kosProperty ->
+            items(kosList) { kosProperty ->
                 RecommendationCard(
                     property = kosProperty,
                     onClick = { onKosClick(kosProperty) }

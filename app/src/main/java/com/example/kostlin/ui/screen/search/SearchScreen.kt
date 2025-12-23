@@ -1,11 +1,13 @@
 package com.example.kostlin.ui.screen.search
 
-import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,438 +19,594 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.kostlin.R
-import com.example.kostlin.data.model.KosProperty
-import com.example.kostlin.data.model.KosDummyData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.example.kostlin.core.network.ApiResult
+import com.example.kostlin.core.network.NetworkClient
+import com.example.kostlin.core.network.executeRequest
+import com.example.kostlin.data.mapper.toDomain
+import com.example.kostlin.data.remote.service.ApiService
+import com.example.kostlin.domain.model.Kos
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.util.Locale
 
-private data class RecentSearch(
-    val name: String,
-    val location: String
+// ViewModel
+data class SearchUiState(
+    val isLoading: Boolean = false,
+    val searchQuery: String = "",
+    val selectedType: String? = null,
+    val minPrice: Int? = null,
+    val maxPrice: Int? = null,
+    val results: List<Kos> = emptyList(),
+    val error: String? = null
 )
 
+class SearchViewModel(
+    private val apiService: ApiService
+) : ViewModel() {
+    
+    private val _uiState = MutableStateFlow(SearchUiState())
+    val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
+    
+    fun updateSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
+    
+    fun updateFilters(type: String?, minPrice: Int?, maxPrice: Int?) {
+        _uiState.update { 
+            it.copy(
+                selectedType = type,
+                minPrice = minPrice,
+                maxPrice = maxPrice
+            )
+        }
+    }
+    
+    fun search() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            
+            val state = _uiState.value
+            when (val result = executeRequest(defaultValue = emptyList()) {
+                apiService.getKosList(
+                    type = state.selectedType,
+                    minPrice = state.minPrice,
+                    maxPrice = state.maxPrice,
+                    search = state.searchQuery.ifBlank { null }
+                )
+            }) {
+                is ApiResult.Success -> {
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false, 
+                            results = result.data.map { dto -> dto.toDomain() }
+                        )
+                    }
+                }
+                is ApiResult.Error -> {
+                    _uiState.update { 
+                        it.copy(isLoading = false, error = result.message)
+                    }
+                }
+            }
+        }
+    }
+    
+    fun clearFilters() {
+        _uiState.update { 
+            it.copy(
+                selectedType = null,
+                minPrice = null,
+                maxPrice = null
+            )
+        }
+    }
+}
+
+class SearchViewModelFactory(
+    private val apiService: ApiService
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(SearchViewModel::class.java)) {
+            return SearchViewModel(apiService) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+// Main Screen
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     onBackClick: () -> Unit,
+    onKosClick: (Kos) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var searchQuery by remember { mutableStateOf("") }
+    val viewModel: SearchViewModel = viewModel(
+        factory = SearchViewModelFactory(NetworkClient.apiService)
+    )
+    val uiState by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
     
-    val recentSearches = KosDummyData.getRecentSearches().map { name ->
-        val property = KosDummyData.allKosProperties.find { it.name.contains(name, ignoreCase = true) }
-        RecentSearch(name, property?.location ?: "Padang")
+    var showFilterSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    
+    // Initial search on load
+    LaunchedEffect(Unit) {
+        viewModel.search()
     }
     
-    val searchResults = remember(searchQuery) {
-        if (searchQuery.isBlank()) {
-            KosDummyData.getRecommendedProperties()
-        } else {
-            KosDummyData.searchProperties(searchQuery)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Cari Kos", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
         }
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        // Header
-        SearchHeader(
-            onBackClick = onBackClick
-        )
-        
-        // Search Bar
-        SearchBar(
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Content
-        LazyColumn(
-            modifier = Modifier
+    ) { padding ->
+        Column(
+            modifier = modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .background(Color(0xFFF7F9FF))
+                .padding(padding)
         ) {
-            // Recent Searches Section
-            item {
-                RecentSearchesSection(
-                    recentSearches = recentSearches,
-                    onClearAll = { /* TODO: Clear all recent searches */ },
-                    onSearchClick = { searchTerm ->
-                        searchQuery = searchTerm
+            // Search Bar with Filter
+            SearchBarWithFilter(
+                query = uiState.searchQuery,
+                onQueryChange = { viewModel.updateSearchQuery(it) },
+                onSearch = { 
+                    focusManager.clearFocus()
+                    viewModel.search() 
+                },
+                onFilterClick = { showFilterSheet = true },
+                hasActiveFilters = uiState.selectedType != null || uiState.minPrice != null || uiState.maxPrice != null
+            )
+            
+            // Active Filters Chips
+            if (uiState.selectedType != null || uiState.minPrice != null || uiState.maxPrice != null) {
+                ActiveFiltersRow(
+                    selectedType = uiState.selectedType,
+                    minPrice = uiState.minPrice,
+                    maxPrice = uiState.maxPrice,
+                    onClearFilters = {
+                        viewModel.clearFilters()
+                        viewModel.search()
                     }
                 )
             }
             
-            // Search Results Section
-            item {
-                SearchResultsSection(
-                    searchResults = searchResults,
-                    onSeeAll = { /* TODO: See all results */ }
-                )
-            }
+            // Results count
+            Text(
+                text = "${uiState.results.size} kos ditemukan",
+                style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
             
-            // Search Result Items
-            items(searchResults) { result ->
-                SearchResultCard(
-                    property = result,
-                    onClick = { /* TODO: Navigate to detail */ }
-                )
+            // Content
+            when {
+                uiState.isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFF5876FF))
+                    }
+                }
+                uiState.error != null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(uiState.error!!, color = Color.Red)
+                    }
+                }
+                uiState.results.isEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🔍", style = MaterialTheme.typography.displayLarge)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Tidak ada kos ditemukan", color = Color.Gray)
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(uiState.results) { kos ->
+                            KosSearchResultCard(kos = kos, onClick = { onKosClick(kos) })
+                        }
+                        item { Spacer(modifier = Modifier.height(16.dp)) }
+                    }
+                }
             }
         }
     }
-}
-
-@Composable
-private fun SearchHeader(
-    onBackClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onBackClick) {
-            Icon(
-                imageVector = Icons.Default.ArrowBack,
-                contentDescription = "Back",
-                tint = Color(0xFF1B2633)
-            )
-        }
-        
-        Text(
-            text = "Cari",
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1B2633)
-            )
+    
+    // Filter Bottom Sheet
+    if (showFilterSheet) {
+        FilterBottomSheet(
+            sheetState = sheetState,
+            selectedType = uiState.selectedType,
+            minPrice = uiState.minPrice,
+            maxPrice = uiState.maxPrice,
+            onDismiss = { showFilterSheet = false },
+            onApply = { type, minP, maxP ->
+                viewModel.updateFilters(type, minP, maxP)
+                viewModel.search()
+                scope.launch { sheetState.hide() }.invokeOnCompletion {
+                    showFilterSheet = false
+                }
+            }
         )
-        
-        Box {
-            IconButton(onClick = { /* TODO: Notifications */ }) {
-                Icon(
-                    imageVector = Icons.Default.NotificationsNone,
-                    contentDescription = "Notifications",
-                    tint = Color(0xFF1B2633)
-                )
-            }
-            // Notification dot
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(Color.Red, shape = androidx.compose.foundation.shape.CircleShape)
-                    .align(Alignment.TopEnd)
-            )
-        }
     }
 }
 
 @Composable
-private fun SearchBar(
+private fun SearchBarWithFilter(
     query: String,
     onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onSearch: () -> Unit,
+    onFilterClick: () -> Unit,
+    hasActiveFilters: Boolean
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF5F5F5),
-        shadowElevation = 2.dp
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Search",
-                tint = Color(0xFF9E9E9E),
-                modifier = Modifier.size(20.dp)
-            )
-            
-            Spacer(modifier = Modifier.width(12.dp))
-            
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                decorationBox = { innerTextField ->
-                    if (query.isEmpty()) {
-                        Text(
-                            text = "Cari....",
-                            color = Color(0xFF9E9E9E),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            placeholder = { Text("Cari nama, alamat, kota...") },
+            leadingIcon = { Icon(Icons.Default.Search, "Search", tint = Color.Gray) },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(Icons.Default.Clear, "Clear", tint = Color.Gray)
                     }
-                    innerTextField()
                 }
-            )
-            
-            IconButton(
-                onClick = { /* TODO: Filter */ },
-                modifier = Modifier.size(24.dp)
-            ) {
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF5876FF),
+                unfocusedBorderColor = Color(0xFFE0E0E0),
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch() })
+        )
+        
+        Surface(
+            modifier = Modifier.size(56.dp).clickable { onFilterClick() },
+            shape = RoundedCornerShape(12.dp),
+            color = if (hasActiveFilters) Color(0xFF5876FF) else Color.White,
+            shadowElevation = 2.dp
+        ) {
+            Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Default.FilterList,
-                    contentDescription = "Filter",
-                    tint = Color(0xFF9E9E9E)
+                    Icons.Default.FilterList,
+                    "Filter",
+                    tint = if (hasActiveFilters) Color.White else Color(0xFF5876FF)
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RecentSearchesSection(
-    recentSearches: List<RecentSearch>,
-    onClearAll: () -> Unit,
-    onSearchClick: (String) -> Unit
+private fun ActiveFiltersRow(
+    selectedType: String?,
+    minPrice: Int?,
+    maxPrice: Int?,
+    onClearFilters: () -> Unit
 ) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Pencarian Terakhir",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1B2633)
-                )
-            )
-            
-            Text(
-                text = "Bersihkan Semua",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    color = Color(0xFFE84362),
-                    fontWeight = FontWeight.Medium
-                ),
-                modifier = Modifier.clickable { onClearAll() }
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        recentSearches.forEach { search ->
-            RecentSearchItem(
-                search = search,
-                onClick = { onSearchClick(search.name) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun RecentSearchItem(
-    search: RecentSearch,
-    onClick: () -> Unit
-) {
+    val priceFormatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Default.History,
-            contentDescription = "Recent",
-            tint = Color(0xFF9E9E9E),
-            modifier = Modifier.size(20.dp)
-        )
+        Text("Filter:", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         
-        Spacer(modifier = Modifier.width(12.dp))
-        
-        Column {
-            Text(
-                text = search.name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1B2633)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            selectedType?.let {
+                FilterChip(
+                    selected = true,
+                    onClick = { },
+                    label = { Text("Kos ${it.replaceFirstChar { c -> c.uppercase() }}") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFF5876FF).copy(alpha = 0.2f),
+                        selectedLabelColor = Color(0xFF5876FF)
+                    )
                 )
-            )
-            Text(
-                text = search.location,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFF9E9E9E)
+            }
+            
+            if (minPrice != null || maxPrice != null) {
+                val priceText = when {
+                    minPrice != null && maxPrice != null -> "${priceFormatter.format(minPrice)} - ${priceFormatter.format(maxPrice)}"
+                    minPrice != null -> "Min ${priceFormatter.format(minPrice)}"
+                    else -> "Max ${priceFormatter.format(maxPrice)}"
+                }
+                FilterChip(
+                    selected = true,
+                    onClick = { },
+                    label = { Text(priceText, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFF5876FF).copy(alpha = 0.2f),
+                        selectedLabelColor = Color(0xFF5876FF)
+                    )
                 )
-            )
+            }
         }
-    }
-}
-
-@Composable
-private fun SearchResultsSection(
-    searchResults: List<KosProperty>,
-    onSeeAll: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "Terakhir Dilihat",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1B2633)
-            )
-        )
+        
+        Spacer(modifier = Modifier.weight(1f))
         
         Text(
-            text = "Semua",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = Color(0xFF5876FF),
+            text = "Hapus",
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = Color(0xFFF44336),
                 fontWeight = FontWeight.Medium
             ),
-            modifier = Modifier.clickable { onSeeAll() }
+            modifier = Modifier.clickable { onClearFilters() }
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun SearchResultCard(
-    property: KosProperty,
-    onClick: () -> Unit
+private fun FilterBottomSheet(
+    sheetState: androidx.compose.material3.SheetState,
+    selectedType: String?,
+    minPrice: Int?,
+    maxPrice: Int?,
+    onDismiss: () -> Unit,
+    onApply: (type: String?, minPrice: Int?, maxPrice: Int?) -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    var tempType by remember { mutableStateOf(selectedType) }
+    var priceRange by remember { 
+        mutableStateOf(
+            (minPrice?.toFloat() ?: 0f)..(maxPrice?.toFloat() ?: 5000000f)
+        )
+    }
+    val priceFormatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Property Image
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        brush = when (property.id % 3) {
-                            0 -> Brush.linearGradient(listOf(Color(0xFFD4A574), Color(0xFFE6C2A6)))
-                            1 -> Brush.linearGradient(listOf(Color(0xFF6B9BD1), Color(0xFF8FB4D3)))
-                            else -> Brush.linearGradient(listOf(Color(0xFF4A90A4), Color(0xFF7FB8AA)))
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                // Placeholder for property image
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .background(
-                            Color.White.copy(alpha = 0.3f),
-                            RoundedCornerShape(8.dp)
+            Text("Filter Pencarian", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+            
+            // Type Filter
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Tipe Kos", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("putra" to "Kos Putra", "putri" to "Kos Putri", "campur" to "Kos Campur").forEach { (value, label) ->
+                        FilterChip(
+                            selected = tempType == value,
+                            onClick = { tempType = if (tempType == value) null else value },
+                            label = { Text(label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF5876FF),
+                                selectedLabelColor = Color.White
+                            )
                         )
-                )
+                    }
+                }
             }
             
-            // Property Details
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = property.name,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1B2633)
+            // Price Range Filter
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Rentang Harga", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium))
+                
+                RangeSlider(
+                    value = priceRange,
+                    onValueChange = { priceRange = it },
+                    valueRange = 0f..10000000f,
+                    steps = 19,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFF5876FF),
+                        activeTrackColor = Color(0xFF5876FF),
+                        inactiveTrackColor = Color(0xFFE0E0E0)
                     )
                 )
                 
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Place,
-                        contentDescription = "Location",
-                        tint = Color(0xFF9E9E9E),
-                        modifier = Modifier.size(16.dp)
+                    Text(
+                        priceFormatter.format(priceRange.start.toInt()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
                     )
+                    Text(
+                        priceFormatter.format(priceRange.endInclusive.toInt()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+            
+            // Apply Button
+            Button(
+                onClick = {
+                    val minP = if (priceRange.start > 0f) priceRange.start.toInt() else null
+                    val maxP = if (priceRange.endInclusive < 10000000f) priceRange.endInclusive.toInt() else null
+                    onApply(tempType, minP, maxP)
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5876FF))
+            ) {
+                Text("Terapkan Filter", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun KosSearchResultCard(
+    kos: Kos,
+    onClick: () -> Unit
+) {
+    val priceFormatter = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Image
+            Box(
+                modifier = Modifier.size(90.dp).clip(RoundedCornerShape(12.dp))
+            ) {
+                if (kos.images.isNotEmpty()) {
+                    AsyncImage(
+                        model = kos.images.first(),
+                        contentDescription = kos.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(
+                            Brush.linearGradient(listOf(Color(0xFF5876FF), Color(0xFF8B9DFF)))
+                        ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🏠", style = MaterialTheme.typography.headlineMedium)
+                    }
+                }
+            }
+            
+            // Details
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = kos.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Place, "Location", Modifier.size(14.dp), tint = Color.Gray)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = property.location,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color(0xFF9E9E9E)
-                        )
+                        text = "${kos.city} • ${kos.type.name}",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 
-                Text(
-                    text = property.price,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1B2633),
-                        fontSize = 16.sp
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${priceFormatter.format(kos.pricePerMonth)}/bln",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF5876FF)
+                        )
                     )
-                )
-            }
-            
-            // Rating
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "⭐",
-                    fontSize = 16.sp
-                )
-                Text(
-                    text = property.rating,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1B2633)
-                    )
-                )
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("⭐", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = String.format("%.1f", kos.rating),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
             }
         }
     }

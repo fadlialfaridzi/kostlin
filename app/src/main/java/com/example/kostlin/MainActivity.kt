@@ -11,8 +11,11 @@ import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -88,41 +91,47 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                        if (isLoggedIn) {
-                            HomeScreen(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(innerPadding),
-                                userName = activeUserName,
-                                onLogout = {
-                                    authViewModel.logout()
-                                    isLoggedIn = false
-                                },
-                                homeViewModel = homeViewModel
-                            )
-                        } else {
-                            AuthNavigation(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(innerPadding),
-                                authViewModel = authViewModel,
-                                onLoginSuccess = { userName ->
-                                    activeUserName = userName.ifBlank { "Mr. Jiharmok" }
-                                    showLoginSuccess = true
-                                }
-                            )
-                            
-                            // Login Success Dialog
-                            SuccessDialog(
-                                visible = showLoginSuccess,
-                                title = "Login Berhasil!",
-                                message = "Selamat datang kembali, $activeUserName",
-                                onDismiss = {
-                                    showLoginSuccess = false
-                                    isLoggedIn = true
-                                }
-                            )
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+                    ) { innerPadding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .windowInsetsPadding(WindowInsets.safeDrawing)
+                        ) {
+                            if (isLoggedIn) {
+                                HomeScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    userName = activeUserName,
+                                    onLogout = {
+                                        authViewModel.logout()
+                                        isLoggedIn = false
+                                    },
+                                    homeViewModel = homeViewModel
+                                )
+                            } else {
+                                AuthNavigation(
+                                    modifier = Modifier.fillMaxSize(),
+                                    authViewModel = authViewModel,
+                                    onLoginSuccess = { userName ->
+                                        activeUserName = userName.ifBlank { "Mr. Jiharmok" }
+                                        showLoginSuccess = true
+                                    }
+                                )
+                                
+                                // Login Success Dialog
+                                SuccessDialog(
+                                    visible = showLoginSuccess,
+                                    title = "Login Berhasil!",
+                                    message = "Selamat datang kembali, $activeUserName",
+                                    onDismiss = {
+                                        showLoginSuccess = false
+                                        isLoggedIn = true
+                                    }
+                                )
+                            }
                         }
                     }
                 }

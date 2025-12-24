@@ -41,25 +41,25 @@ class KostlinFirebaseMessagingService : FirebaseMessagingService() {
         Log.d(TAG, "Data: ${remoteMessage.data}")
         Log.d(TAG, "Notification: ${remoteMessage.notification?.title} - ${remoteMessage.notification?.body}")
         
-        // Handle data payload
-        if (remoteMessage.data.isNotEmpty()) {
-            Log.d(TAG, "Processing data payload...")
-            val title = remoteMessage.data["title"] ?: "Kostlin"
-            val body = remoteMessage.data["body"] ?: ""
-            val bookingId = remoteMessage.data["bookingId"]
-            
-            showNotification(title, body, bookingId)
+        // Extract title and body - prioritize notification payload, fallback to data payload
+        val title: String
+        val body: String
+        
+        if (remoteMessage.notification != null) {
+            // Use notification payload if available
+            title = remoteMessage.notification?.title ?: "Kostlin"
+            body = remoteMessage.notification?.body ?: ""
+        } else if (remoteMessage.data.isNotEmpty()) {
+            // Fallback to data payload
+            title = remoteMessage.data["title"] ?: "Kostlin"
+            body = remoteMessage.data["body"] ?: ""
+        } else {
+            Log.d(TAG, "No payload to process")
+            return
         }
         
-        // Handle notification payload (when app is in foreground)
-        remoteMessage.notification?.let { notification ->
-            Log.d(TAG, "Processing notification payload...")
-            val title = notification.title ?: "Kostlin"
-            val body = notification.body ?: ""
-            val bookingId = remoteMessage.data["bookingId"]
-            
-            showNotification(title, body, bookingId)
-        }
+        val bookingId = remoteMessage.data["bookingId"]
+        showNotification(title, body, bookingId)
         
         Log.d(TAG, "============================================")
     }
